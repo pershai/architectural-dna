@@ -27,6 +27,7 @@ class Language(str, Enum):
     JAVA = "java"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
+    CSHARP = "csharp"
     GO = "go"
     UNKNOWN = "unknown"
 
@@ -40,6 +41,7 @@ class Language(str, Enum):
             ".ts": cls.TYPESCRIPT,
             ".tsx": cls.TYPESCRIPT,
             ".jsx": cls.JAVASCRIPT,
+            ".cs": cls.CSHARP,
             ".go": cls.GO,
         }
         return mapping.get(ext.lower(), cls.UNKNOWN)

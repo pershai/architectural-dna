@@ -94,6 +94,7 @@ discovery:
     - ".jsx"
     - ".go"
     - ".java"
+    - ".cs"
 
 # Scaffolding Configuration
 scaffolding:

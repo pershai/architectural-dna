@@ -46,6 +46,8 @@ class PatternExtractor:
             chunks = self._extract_java_chunks(content, file_path)
         elif language in (Language.JAVASCRIPT, Language.TYPESCRIPT):
             chunks = self._extract_js_chunks(content, file_path, language)
+        elif language == Language.CSHARP:
+            chunks = self._extract_csharp_chunks(content, file_path)
         else:
             chunks = []
         
@@ -314,7 +316,96 @@ class PatternExtractor:
             if stripped.startswith("import ") or stripped.startswith("require("):
                 import_lines.append(line)
         return "\n".join(import_lines)
-    
+
+    def _extract_csharp_chunks(self, content: str, file_path: str) -> list[CodeChunk]:
+        """Extract C# classes, interfaces, structs, and methods using regex-based parsing."""
+        chunks = []
+        lines = content.split("\n")
+
+        # Extract using statements and namespace for context
+        context = self._extract_csharp_context(content)
+
+        # Patterns for C# type definitions
+        # Matches: class, interface, struct, record, enum with modifiers
+        type_pattern = re.compile(
+            r"^(?:\s*(?:public|private|protected|internal|sealed|abstract|static|partial)\s+)*"
+            r"(?:class|interface|struct|record|enum)\s+(\w+)"
+        )
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Skip attributes, collect them
+            attribute_start = i
+            while stripped.startswith("["):
+                i += 1
+                if i < len(lines):
+                    stripped = lines[i].strip()
+                else:
+                    break
+
+            # Check for type definition
+            type_match = type_pattern.match(stripped)
+            if type_match:
+                type_name = type_match.group(1)
+                end_line = self._find_brace_block_end(lines, i)
+                chunk_content = "\n".join(lines[attribute_start:end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    # Determine chunk type based on keyword
+                    chunk_type = "class"
+                    if "interface" in stripped:
+                        chunk_type = "interface"
+                    elif "struct" in stripped:
+                        chunk_type = "struct"
+                    elif "record" in stripped:
+                        chunk_type = "record"
+                    elif "enum" in stripped:
+                        chunk_type = "enum"
+
+                    chunks.append(CodeChunk(
+                        content=chunk_content,
+                        file_path=file_path,
+                        language=Language.CSHARP,
+                        start_line=attribute_start + 1,
+                        end_line=end_line + 1,
+                        chunk_type=chunk_type,
+                        name=type_name,
+                        context=context
+                    ))
+                i = end_line + 1
+                continue
+
+            i += 1
+
+        return chunks
+
+    def _extract_csharp_context(self, content: str) -> str:
+        """Extract using statements and namespace from C# code."""
+        context_lines = []
+        in_namespace = False
+        namespace_line = None
+
+        for line in content.split("\n"):
+            stripped = line.strip()
+
+            # Collect using statements
+            if stripped.startswith("using ") and not stripped.startswith("using ("):
+                context_lines.append(line)
+
+            # Collect namespace declaration (both classic and file-scoped)
+            elif stripped.startswith("namespace "):
+                namespace_line = line
+                in_namespace = True
+
+        # Add namespace at the beginning if found
+        if namespace_line:
+            context_lines.insert(0, namespace_line)
+
+        return "\n".join(context_lines)
+
     def _find_brace_block_end(self, lines: list[str], start: int) -> int:
         """Find the end of a brace-delimited block."""
         brace_count = 0
