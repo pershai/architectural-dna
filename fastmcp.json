@@ -1,0 +1,8 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 50051,
+    "tls": false
+  },
+  "name": "architectural-dna"
+}

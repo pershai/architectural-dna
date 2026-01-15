@@ -1,0 +1,103 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.claude/
+.antigravity/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# MCP client configs (contain secrets)
+*mcp_config*.json
+!fastmcp.json
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.p12
+
+# Qdrant vector database
+qdrant_storage/
+*.qdrant
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+test_projects/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Distribution / packaging
+*.whl
+
+# Docker
+docker-compose.override.yml
+*.tar.gz
+
+# Data directories
+data/
+backups/
+generated_projects/
+
+# Local test files
+test_*.py
+!test_tools.py
+!test_models.py
+!test_utils.py
+
+# Lock files (generated)
+requirements.lock
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+
+# Cache
+.cache/
+*.cache

@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: architectural-dna-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"  # REST API (use 6335 if 6333 is taken)
+      - "${QDRANT_GRPC_PORT:-6334}:6334"  # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/localhost/6333' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dna-network
+
+  # Architectural DNA MCP Server
+  dna-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: architectural-dna-server
+    restart: unless-stopped
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-8080}:8080"  # MCP SSE server
+    environment:
+      # GitHub Integration
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Google Gemini LLM
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Qdrant Vector Database
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      # MCP Server settings
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8080
+      # Python settings
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount config for easy updates
+      - ./config.yaml:/app/config.yaml:ro
+      # Persist downloaded embedding models
+      - embeddings_cache:/app/.cache/fastembed
+      # Optional: Mount local codebase for discovery
+      - ${LOCAL_CODE_PATH:-./data}:/data:ro
+    networks:
+      - dna-network
+
+  # Optional: Qdrant Web UI
+  qdrant-web-ui:
+    image: qdrant/qdrant:latest
+    container_name: architectural-dna-qdrant-ui
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT_HOST=qdrant
+    profiles:
+      - ui
+    networks:
+      - dna-network
+
+volumes:
+  qdrant_data:
+    name: architectural-dna-qdrant-data
+    driver: local
+  embeddings_cache:
+    name: architectural-dna-embeddings
+    driver: local
+
+networks:
+  dna-network:
+    name: architectural-dna-network
+    driver: bridge

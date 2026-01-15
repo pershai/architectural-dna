@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Test files
+test_*.py
+*_test.py
+TEST_RESULTS.md
+IMPROVEMENTS.md
+REFACTORING.md
+EMBEDDING_IMPROVEMENTS.md
+
+# Scripts
+manual_*.py
+discover_dna.py
+migrate_collection.py
+
+# Local data
+data/
+*.db
+*.sqlite
+*.log
+
+# Cache
+.cache/
+*.pyc
+
+# OS
+Thumbs.db
+desktop.ini
