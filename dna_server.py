@@ -34,6 +34,7 @@ from fastmcp import FastMCP, Context
 from qdrant_client import QdrantClient
 
 from tools import PatternTool, RepositoryTool, ScaffoldTool, StatsTool
+from tools.batch_processor import BatchProcessor, BatchConfig
 from embedding_manager import EmbeddingManager
 
 # Configure logging
@@ -89,6 +90,7 @@ pattern_tool = PatternTool(client, COLLECTION_NAME, config)
 repository_tool = RepositoryTool(client, COLLECTION_NAME, config)
 scaffold_tool = ScaffoldTool(client, COLLECTION_NAME, config)
 stats_tool = StatsTool(client, COLLECTION_NAME, config)
+batch_processor = BatchProcessor(client, COLLECTION_NAME, config)
 
 
 # ==============================================================================
@@ -279,6 +281,90 @@ def get_embedding_info() -> str:
         output += f"  - {model} ({dims}d){current}\n"
 
     return output
+
+
+@mcp.tool()
+def batch_sync_repo(
+        repo_name: str,
+        batch_size: int = 10,
+        analyze_patterns: bool = True,
+        min_quality: int = 5,
+        resume: bool = True
+) -> str:
+    """
+    Sync a large GitHub repository in batches with progress tracking.
+
+    Designed for large repositories that may timeout with regular sync.
+    Processes files in configurable batches, tracks progress, and supports
+    resuming after interruption.
+
+    Args:
+        repo_name: Full repository name (e.g., "username/repo-name")
+        batch_size: Number of files to process per batch (default: 10)
+        analyze_patterns: If True, use LLM to identify and rate patterns
+        min_quality: Minimum quality score (1-10) for patterns to store
+        resume: If True, resume from previous progress if available
+
+    Returns:
+        Summary of the sync operation with progress details
+    """
+    batch_config = BatchConfig(
+        batch_size=batch_size,
+        analyze_patterns=analyze_patterns,
+        min_quality=min_quality
+    )
+    return batch_processor.batch_sync_repo(
+        repo_name=repo_name,
+        batch_config=batch_config,
+        resume=resume
+    )
+
+
+@mcp.tool()
+def get_sync_progress(repo_name: str) -> str:
+    """
+    Get the current progress for a repository batch sync.
+
+    Use this to check on long-running sync operations or to see
+    if there's a resumable sync available.
+
+    Args:
+        repo_name: Full repository name (e.g., "username/repo-name")
+
+    Returns:
+        Progress details or message if no progress exists
+    """
+    progress = batch_processor.get_sync_progress(repo_name)
+    if not progress:
+        return f"No sync progress found for {repo_name}"
+
+    output = f"[*] **Sync Progress for {repo_name}**\n\n"
+    output += f"**Files:** {progress['processed_files']}/{progress['total_files']}"
+    output += f" ({progress['progress_percent']}%)\n"
+    output += f"**Chunks extracted:** {progress['total_chunks']}\n"
+    output += f"**Patterns stored:** {progress['stored_patterns']}\n"
+    output += f"**Failed files:** {len(progress['failed_files'])}\n"
+    output += f"**Current file:** {progress['current_file']}\n"
+    output += f"**Elapsed:** {progress['elapsed_seconds']:.1f}s\n"
+    output += f"**Est. remaining:** {progress['estimated_remaining_seconds']:.1f}s\n"
+
+    return output
+
+
+@mcp.tool()
+def clear_sync_progress(repo_name: str) -> str:
+    """
+    Clear saved progress for a repository sync.
+
+    Use this to start a fresh sync instead of resuming.
+
+    Args:
+        repo_name: Full repository name (e.g., "username/repo-name")
+
+    Returns:
+        Confirmation message
+    """
+    return batch_processor.clear_sync_progress(repo_name)
 
 
 def apply_header_overrides(headers: dict) -> dict:
