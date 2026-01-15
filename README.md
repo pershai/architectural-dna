@@ -294,19 +294,49 @@ python discover_dna.py /path/to/your/codebase
 python manual_list_repos.py
 ```
 
-### Integration with Claude Desktop
+### Integration with MCP Clients
 
-Add to your Claude Desktop MCP config (`claude_desktop_config.json`):
+First, start the Docker server:
+```bash
+docker-compose up -d
+```
+
+Then add to your MCP client config:
+
+#### Claude Desktop / Cursor / Windsurf
+
+Config location:
+- **Claude Desktop**: `claude_desktop_config.json`
+- **Cursor**: `%APPDATA%\Cursor\User\globalStorage\cursor.mcp\config.json`
+- **Windsurf**: `%APPDATA%\Windsurf\User\globalStorage\cascade.mcp\config.json`
 
 ```json
 {
   "mcpServers": {
     "architectural-dna": {
-      "command": "python",
-      "args": ["d:/projects/python/architectural-dna/dna_server.py"],
-      "env": {
-        "GITHUB_TOKEN": "your_token",
-        "GEMINI_API_KEY": "your_key"
+      "transport": "sse",
+      "url": "http://localhost:8080/sse",
+      "headers": {
+        "X-GITHUB-TOKEN": "your_github_token",
+        "X-GEMINI-API-KEY": "your_gemini_api_key"
+      }
+    }
+  }
+}
+```
+
+#### Gemini Code Assist / Antigravity
+
+Config location: `~/.gemini/antigravity/mcp_config.json`
+
+```json
+{
+  "mcpServers": {
+    "architectural-dna": {
+      "serverUrl": "http://localhost:8080/sse",
+      "headers": {
+        "X-GITHUB-TOKEN": "your_github_token",
+        "X-GEMINI-API-KEY": "your_gemini_api_key"
       }
     }
   }
