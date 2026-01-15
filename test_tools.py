@@ -93,6 +93,7 @@ class TestPatternTool:
             "quality_score": 8
         }
         mock_result.document = "def test(): pass"
+        mock_result.score = 0.95
 
         mock_qdrant_client.query.return_value = [mock_result]
         tool = PatternTool(mock_qdrant_client, "test_collection", test_config)
