@@ -1,0 +1,6 @@
+# Ensure shell scripts always use LF line endings, even on Windows
+# This prevents Docker entrypoint execution errors
+*.sh text eol=lf
+
+# Standard line ending normalization for other files
+* text=auto
