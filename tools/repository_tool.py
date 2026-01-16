@@ -1,11 +1,30 @@
 """Repository management tools for GitHub integration."""
 
+from constants import LARGE_REPO_THRESHOLD
 from models import Pattern, PatternCategory
 from .base import BaseTool
 
 
 class RepositoryTool(BaseTool):
     """Tool for GitHub repository operations and synchronization."""
+
+    def __init__(self, qdrant_client, collection_name: str, config: dict = None,
+                 batch_processor=None):
+        """
+        Initialize repository tool.
+
+        Args:
+            qdrant_client: Qdrant client instance
+            collection_name: Name of the collection
+            config: Configuration dictionary
+            batch_processor: Optional BatchProcessor for large repos
+        """
+        super().__init__(qdrant_client, collection_name, config)
+        self._batch_processor = batch_processor
+
+    def set_batch_processor(self, batch_processor):
+        """Set the batch processor for large repository handling."""
+        self._batch_processor = batch_processor
 
     def list_my_repos(
             self,
@@ -68,6 +87,9 @@ class RepositoryTool(BaseTool):
         Fetches code from the repository, extracts patterns, optionally analyzes
         them with LLM, and stores high-quality patterns in the vector database.
 
+        For large repositories (>50 files), automatically uses batch processing
+        with progress tracking and resumability.
+
         Args:
             repo_name: Full repository name (e.g., "username/repo-name")
             analyze_patterns: If True, use LLM to identify and rate patterns
@@ -87,7 +109,22 @@ class RepositoryTool(BaseTool):
 
             # Get code files
             code_files = gh.get_code_files(repo)
-            self.logger.info(f"Found {len(code_files)} code files")
+            total_files = len(code_files)
+            self.logger.info(f"Found {total_files} code files")
+
+            # For large repos, delegate to batch processor if available
+            if total_files > LARGE_REPO_THRESHOLD and self._batch_processor:
+                self.logger.info(
+                    f"Large repo detected ({total_files} files > {LARGE_REPO_THRESHOLD}), "
+                    "using batch processing..."
+                )
+                from .batch_processor import BatchConfig
+                batch_config = self._batch_processor._get_default_batch_config()
+                batch_config.analyze_patterns = analyze_patterns
+                batch_config.min_quality = min_quality
+                return self._batch_processor.batch_sync_repo(
+                    repo_name, batch_config, resume=True
+                )
 
             if not code_files:
                 return f"No code files found in {repo_name}"
@@ -158,14 +195,16 @@ class RepositoryTool(BaseTool):
                     )
                     patterns_to_store.append(pattern)
 
-            # Store patterns in Qdrant
+            # Store patterns in Qdrant using upsert for deduplication
             stored_count = 0
             for pattern in patterns_to_store:
                 try:
+                    pattern_id = pattern.generate_id()
                     self.client.add(
                         collection_name=self.collection_name,
                         documents=[pattern.content],
-                        metadata=[pattern.to_metadata()]
+                        metadata=[pattern.to_metadata()],
+                        ids=[pattern_id]
                     )
                     stored_count += 1
                 except Exception as e:

@@ -173,13 +173,17 @@ class TestStatsTool:
         mock_info.points_count = 42
         mock_qdrant_client.get_collection.return_value = mock_info
 
-        mock_result = Mock()
-        mock_result.metadata = {
+        # Mock scroll() to return points with payload, then empty on second call
+        mock_point = Mock()
+        mock_point.payload = {
             "language": "python",
             "category": "utilities",
             "source_repo": "user/repo"
         }
-        mock_qdrant_client.query.return_value = [mock_result]
+        # First call returns data, second call returns empty (end of scroll)
+        mock_qdrant_client.scroll.side_effect = [
+            ([mock_point], None),  # First batch with data, no more offset
+        ]
 
         tool = StatsTool(mock_qdrant_client, "test_collection", test_config)
         result = tool.get_dna_stats()
