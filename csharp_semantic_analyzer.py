@@ -87,6 +87,9 @@ class CSharpTypeInfo:
     is_partial: bool = False
     partial_locations: List[str] = field(default_factory=list)
 
+    # Async safety violations (line_number, message)
+    async_violations: List[Tuple[int, str]] = field(default_factory=list)
+
 
 @dataclass
 class ArchitecturalViolation:

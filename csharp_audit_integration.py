@@ -5,11 +5,12 @@ Architectural DNA pattern extraction and storage system.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import asdict
 
-from models import Pattern, PatternMetadata, PatternCategory, Language, CodeChunk
+from models import Pattern, PatternCategory, Language, CodeChunk
 from pattern_extractor import PatternExtractor
 from csharp_semantic_analyzer import (
     CSharpSemanticAnalyzer,
@@ -94,6 +95,7 @@ class CSharpArchitecturalAuditor:
             # Check for async safety issues
             async_violations = self.semantic_analyzer.detect_async_over_sync(chunk.content)
             if async_violations:
+                type_info.async_violations = async_violations
                 logger.warning(
                     f"Async-over-sync detected in {type_info.name}: "
                     f"{len(async_violations)} violations"
@@ -251,15 +253,14 @@ class CSharpArchitecturalAuditor:
                 category=category,
                 language=Language.CSHARP,
                 quality_score=self._calculate_quality_score(type_info),
-                metadata=PatternMetadata(
-                    source=type_info.file_path,
-                    tags=[
-                        type_info.architectural_role.value,
-                        type_info.type_kind,
-                        f"lcom_{type_info.lcom_score:.2f}",
-                        f"deps_{len(type_info.dependencies)}"
-                    ]
-                )
+                source_repo="csharp_audit",
+                source_path=type_info.file_path,
+                use_cases=[
+                    type_info.architectural_role.value,
+                    type_info.type_kind,
+                    f"lcom_{type_info.lcom_score:.2f}",
+                    f"deps_{len(type_info.dependencies)}"
+                ]
             )
 
             patterns.append(pattern)
@@ -275,7 +276,6 @@ class CSharpArchitecturalAuditor:
 
     def _extract_base_types(self, content: str) -> List[str]:
         """Extract base types/interfaces from class declaration."""
-        import re
         match = re.search(r':\s*([^{]+)', content)
         if match:
             bases = match.group(1).split(',')

@@ -8,7 +8,8 @@ Implements advanced architectural rules for C# projects including:
 """
 
 import re
-from typing import List, Dict, Set, Optional
+import logging
+from typing import List, Dict, Set, Optional, Any
 from dataclasses import dataclass, field
 from collections import defaultdict
 
@@ -18,6 +19,8 @@ from csharp_semantic_analyzer import (
     ArchitecturalViolation,
     ArchitecturalRole
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -39,7 +42,7 @@ class AuditResult:
     violations_by_severity: Dict[str, int]
     violations_by_rule: Dict[str, int]
     violations: List[ArchitecturalViolation]
-    metrics: Dict[str, any] = field(default_factory=dict)
+    metrics: Dict[str, Any] = field(default_factory=dict)
 
 
 class CSharpAuditEngine:
@@ -317,12 +320,18 @@ class CSharpAuditEngine:
         violations = []
         rule = self.rules["ASYNC_001"]
 
-        # This requires re-reading files - in production, cache file contents
-        # For now, we'll check if analyzer has stored async violations
         for type_name, type_info in self.analyzer.types.items():
-            # Note: Would need to extend analyzer to detect this during initial parse
-            # For now, this is a placeholder showing the structure
-            pass
+            if hasattr(type_info, 'async_violations') and type_info.async_violations:
+                for line_num, message in type_info.async_violations:
+                    violations.append(ArchitecturalViolation(
+                        rule_id=rule.rule_id,
+                        severity=rule.severity,
+                        message=message,
+                        type_name=type_name,
+                        file_path=type_info.file_path,
+                        line_number=line_num,
+                        suggestion="Use proper async/await instead of .Result, .Wait(), or .GetAwaiter().GetResult()"
+                    ))
 
         return violations
 
@@ -446,7 +455,7 @@ class CSharpAuditEngine:
                 all_violations.extend(violations)
             except Exception as e:
                 # Log error but continue with other audits
-                print(f"Error in {audit_method.__name__}: {e}")
+                logger.error(f"Error in {audit_method.__name__}: {e}")
 
         # Compile results
         violations_by_severity = defaultdict(int)
