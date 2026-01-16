@@ -19,7 +19,7 @@ class GitHubClient:
     """Handles GitHub API authentication and repository operations."""
 
     # File extensions to include when fetching code
-    CODE_EXTENSIONS = {".py", ".java", ".js", ".ts", ".tsx", ".jsx", ".go"}
+    CODE_EXTENSIONS = {".py", ".java", ".js", ".ts", ".tsx", ".jsx", ".go", ".cs"}
 
     # Directories to skip
     IGNORED_DIRS = {
