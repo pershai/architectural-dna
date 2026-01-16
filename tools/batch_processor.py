@@ -1,13 +1,25 @@
 """Batch processor for handling large repositories."""
 
-import time
-import json
 import hashlib
-from pathlib import Path
+import json
+import time
 from dataclasses import dataclass, field
-from typing import Optional, Callable, Iterator
 from datetime import datetime
+from pathlib import Path
+from typing import Optional, Callable, Iterator
 
+from constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_DELAY_BETWEEN_BATCHES,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_DELAY,
+    DEFAULT_PROGRESS_DIR,
+    DEFAULT_MIN_QUALITY,
+    PROGRESS_SAVE_INTERVAL,
+    PROGRESS_NOTIFY_INTERVAL,
+    PROGRESS_HASH_LENGTH,
+    FAILED_FILES_DISPLAY_LIMIT,
+)
 from models import Pattern, PatternCategory, CodeChunk
 from .base import BaseTool
 
@@ -78,14 +90,14 @@ class BatchProgress:
 @dataclass
 class BatchConfig:
     """Configuration for batch processing."""
-    batch_size: int = 10  # Files per batch
-    delay_between_batches: float = 0.5  # Seconds between batches (rate limiting)
-    max_retries: int = 3  # Retries for failed files
-    retry_delay: float = 1.0  # Seconds between retries
-    save_progress: bool = True  # Save progress for resumability
-    progress_dir: str = ".batch_progress"  # Directory for progress files
-    analyze_patterns: bool = True  # Use LLM analysis
-    min_quality: int = 5  # Minimum quality score
+    batch_size: int = DEFAULT_BATCH_SIZE
+    delay_between_batches: float = DEFAULT_DELAY_BETWEEN_BATCHES
+    max_retries: int = DEFAULT_MAX_RETRIES
+    retry_delay: float = DEFAULT_RETRY_DELAY
+    save_progress: bool = True
+    progress_dir: str = DEFAULT_PROGRESS_DIR
+    analyze_patterns: bool = True
+    min_quality: int = DEFAULT_MIN_QUALITY
 
 
 class BatchProcessor(BaseTool):
@@ -101,26 +113,46 @@ class BatchProcessor(BaseTool):
     """
 
     def __init__(
-        self,
-        qdrant_client,
-        collection_name: str,
-        config: dict = None,
-        progress_callback: Callable[[BatchProgress], None] = None
+            self,
+            qdrant_client,
+            collection_name: str,
+            config: dict = None,
+            progress_callback: Callable[[BatchProgress], None] = None
     ):
         super().__init__(qdrant_client, collection_name, config or {})
         self.progress_callback = progress_callback
         self._ensure_progress_dir()
 
+    def _get_default_batch_config(self) -> BatchConfig:
+        """Create BatchConfig from config.yaml settings."""
+        batch_cfg = self.config.get("batch", {})
+        llm_cfg = self.config.get("llm", {})
+
+        # Determine if LLM analysis should be enabled
+        llm_provider = llm_cfg.get("provider", "mock")
+        analyze_patterns = llm_provider != "mock"
+
+        return BatchConfig(
+            batch_size=batch_cfg.get("batch_size", DEFAULT_BATCH_SIZE),
+            delay_between_batches=batch_cfg.get("delay_between_batches", DEFAULT_DELAY_BETWEEN_BATCHES),
+            max_retries=batch_cfg.get("max_retries", DEFAULT_MAX_RETRIES),
+            retry_delay=batch_cfg.get("retry_delay", DEFAULT_RETRY_DELAY),
+            save_progress=batch_cfg.get("save_progress", True),
+            progress_dir=batch_cfg.get("progress_dir", DEFAULT_PROGRESS_DIR),
+            analyze_patterns=analyze_patterns,
+            min_quality=llm_cfg.get("min_quality_score", DEFAULT_MIN_QUALITY)
+        )
+
     def _ensure_progress_dir(self):
         """Create progress directory if it doesn't exist."""
-        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", ".batch_progress"))
+        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR))
         progress_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_progress_file(self, repo_name: str) -> Path:
         """Get path to progress file for a repository."""
-        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", ".batch_progress"))
+        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR))
         # Create safe filename from repo name
-        safe_name = hashlib.md5(repo_name.encode()).hexdigest()[:12]
+        safe_name = hashlib.md5(repo_name.encode()).hexdigest()[:PROGRESS_HASH_LENGTH]
         return progress_dir / f"{safe_name}.json"
 
     def _save_progress(self, progress: BatchProgress):
@@ -155,13 +187,13 @@ class BatchProcessor(BaseTool):
             yield files[i:i + batch_size]
 
     def _process_file_with_retry(
-        self,
-        gh,
-        repo,
-        file_node,
-        extractor,
-        max_retries: int,
-        retry_delay: float
+            self,
+            gh,
+            repo,
+            file_node,
+            extractor,
+            max_retries: int,
+            retry_delay: float
     ) -> list[CodeChunk]:
         """Process a single file with retry logic."""
         last_error = None
@@ -181,10 +213,10 @@ class BatchProcessor(BaseTool):
         raise last_error
 
     def batch_sync_repo(
-        self,
-        repo_name: str,
-        batch_config: BatchConfig = None,
-        resume: bool = True
+            self,
+            repo_name: str,
+            batch_config: BatchConfig = None,
+            resume: bool = True
     ) -> str:
         """
         Sync a GitHub repository in batches with progress tracking.
@@ -198,7 +230,9 @@ class BatchProcessor(BaseTool):
             Summary of the sync operation with progress details
         """
         if batch_config is None:
-            batch_config = BatchConfig()
+            batch_config = self._get_default_batch_config()
+
+        progress = None  # Initialize for exception handler
 
         try:
             gh = self.get_github_client()
@@ -283,7 +317,7 @@ class BatchProcessor(BaseTool):
                     self._notify_progress(progress)
 
                     # Save progress periodically
-                    if batch_config.save_progress and progress.processed_files % 10 == 0:
+                    if batch_config.save_progress and progress.processed_files % PROGRESS_SAVE_INTERVAL == 0:
                         self._save_progress(progress)
 
                 # Rate limiting delay between batches
@@ -341,20 +375,22 @@ class BatchProcessor(BaseTool):
                     )
                     patterns_to_store.append(pattern)
 
-            # Store patterns in batches
-            self.logger.info(f"Storing {len(patterns_to_store)} patterns...")
+            # Store patterns using upsert for deduplication
+            self.logger.info(f"Storing {len(patterns_to_store)} patterns (with deduplication)...")
 
             for i, pattern in enumerate(patterns_to_store):
                 try:
+                    pattern_id = pattern.generate_id()
                     self.client.add(
                         collection_name=self.collection_name,
                         documents=[pattern.content],
-                        metadata=[pattern.to_metadata()]
+                        metadata=[pattern.to_metadata()],
+                        ids=[pattern_id]
                     )
                     progress.stored_patterns += 1
 
-                    # Progress update every 50 patterns
-                    if i % 50 == 0:
+                    # Progress update periodically
+                    if i % PROGRESS_NOTIFY_INTERVAL == 0:
                         self._notify_progress(progress)
 
                 except Exception as e:
@@ -380,10 +416,10 @@ class BatchProcessor(BaseTool):
 
             if progress.failed_files:
                 summary += f"\n**Failed files ({len(progress.failed_files)}):**\n"
-                for fail in progress.failed_files[:5]:  # Show first 5
+                for fail in progress.failed_files[:FAILED_FILES_DISPLAY_LIMIT]:
                     summary += f"- {fail['path']}: {fail['error']}\n"
-                if len(progress.failed_files) > 5:
-                    summary += f"- ... and {len(progress.failed_files) - 5} more\n"
+                if len(progress.failed_files) > FAILED_FILES_DISPLAY_LIMIT:
+                    summary += f"- ... and {len(progress.failed_files) - FAILED_FILES_DISPLAY_LIMIT} more\n"
 
             return summary
 
@@ -396,7 +432,8 @@ class BatchProcessor(BaseTool):
             # Save progress on error for resumability
             if progress and batch_config.save_progress:
                 self._save_progress(progress)
-            return f"[ERROR] Error syncing repository: {e}\n\nProgress saved. Use resume=True to continue."
+                return f"[ERROR] Error syncing repository: {e}\n\nProgress saved. Use resume=True to continue."
+            return f"[ERROR] Error syncing repository: {e}"
 
     def get_sync_progress(self, repo_name: str) -> Optional[dict]:
         """

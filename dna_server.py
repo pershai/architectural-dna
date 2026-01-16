@@ -87,10 +87,12 @@ if not client.collection_exists(COLLECTION_NAME):
 
 # Initialize tool classes
 pattern_tool = PatternTool(client, COLLECTION_NAME, config)
-repository_tool = RepositoryTool(client, COLLECTION_NAME, config)
 scaffold_tool = ScaffoldTool(client, COLLECTION_NAME, config)
 stats_tool = StatsTool(client, COLLECTION_NAME, config)
 batch_processor = BatchProcessor(client, COLLECTION_NAME, config)
+
+# Initialize repository tool with batch processor for large repos
+repository_tool = RepositoryTool(client, COLLECTION_NAME, config, batch_processor)
 
 
 # ==============================================================================
@@ -107,7 +109,7 @@ def store_pattern(
         quality_score: int = 5,
         source_repo: str = "manual",
         source_path: str = "",
-        use_cases: list[str] = None
+        use_cases: list[str] | None = None
 ) -> str:
     """
     Stores a high-quality code snippet or architectural pattern in the DNA bank.
@@ -135,7 +137,7 @@ def store_pattern(
         quality_score=quality_score,
         source_repo=source_repo,
         source_path=source_path,
-        use_cases=use_cases
+        use_cases=use_cases or []
     )
 
 
@@ -255,6 +257,16 @@ def get_dna_stats() -> str:
     return stats_tool.get_dna_stats()
 
 
+@mcp.resource("dna://stats")
+def get_stats_resource() -> str:
+    """
+    DNA Bank statistics as a readable resource.
+
+    Access via: dna://stats
+    """
+    return stats_tool.get_dna_stats()
+
+
 @mcp.tool()
 def get_embedding_info() -> str:
     """
@@ -286,9 +298,9 @@ def get_embedding_info() -> str:
 @mcp.tool()
 def batch_sync_repo(
         repo_name: str,
-        batch_size: int = 10,
-        analyze_patterns: bool = True,
-        min_quality: int = 5,
+        batch_size: Optional[int] = None,
+        analyze_patterns: Optional[bool] = None,
+        min_quality: Optional[int] = None,
         resume: bool = True
 ) -> str:
     """
@@ -300,19 +312,24 @@ def batch_sync_repo(
 
     Args:
         repo_name: Full repository name (e.g., "username/repo-name")
-        batch_size: Number of files to process per batch (default: 10)
-        analyze_patterns: If True, use LLM to identify and rate patterns
-        min_quality: Minimum quality score (1-10) for patterns to store
+        batch_size: Files per batch (default: from config.yaml)
+        analyze_patterns: Use LLM analysis (default: from config.yaml llm.provider)
+        min_quality: Min quality score 1-10 (default: from config.yaml llm.min_quality_score)
         resume: If True, resume from previous progress if available
 
     Returns:
         Summary of the sync operation with progress details
     """
-    batch_config = BatchConfig(
-        batch_size=batch_size,
-        analyze_patterns=analyze_patterns,
-        min_quality=min_quality
-    )
+    # Start with defaults from config, then apply any user overrides
+    batch_config = batch_processor._get_default_batch_config()
+
+    if batch_size is not None:
+        batch_config.batch_size = batch_size
+    if analyze_patterns is not None:
+        batch_config.analyze_patterns = analyze_patterns
+    if min_quality is not None:
+        batch_config.min_quality = min_quality
+
     return batch_processor.batch_sync_repo(
         repo_name=repo_name,
         batch_config=batch_config,
