@@ -41,17 +41,7 @@ class CSharpArchitecturalAuditor:
         file_path: str,
         content: str
     ) -> List[CSharpTypeInfo]:
-        """
-        Analyze a C# file with full semantic enrichment.
-
-        Args:
-            file_path: Path to the C# file
-            content: File content
-
-        Returns:
-            List of enriched type information
-        """
-        # Extract basic chunks using pattern extractor
+        """Analyze a C# file with full semantic enrichment."""
         chunks = self.pattern_extractor.extract_chunks(
             content,
             file_path,
@@ -61,7 +51,6 @@ class CSharpArchitecturalAuditor:
         types_info = []
 
         for chunk in chunks:
-            # Create type info
             namespace = self._extract_namespace(chunk.context or "")
 
             type_info = CSharpTypeInfo(
@@ -72,13 +61,11 @@ class CSharpArchitecturalAuditor:
                 lines_of_code=chunk.end_line - chunk.start_line
             )
 
-            # Extract attributes
             type_info.attributes = self.semantic_analyzer.extract_attributes(
                 content,
                 chunk.start_line
             )
 
-            # Determine architectural role
             base_types = self._extract_base_types(chunk.content)
             type_info.architectural_role = self.semantic_analyzer.determine_architectural_role(
                 type_info.attributes,
@@ -86,13 +73,9 @@ class CSharpArchitecturalAuditor:
                 base_types
             )
 
-            # Detect partial classes
             type_info.is_partial = "partial" in chunk.content
-
-            # Full semantic analysis
             type_info = self.semantic_analyzer.analyze_type(type_info, chunk.content)
 
-            # Check for async safety issues
             async_violations = self.semantic_analyzer.detect_async_over_sync(chunk.content)
             if async_violations:
                 type_info.async_violations = async_violations
@@ -110,21 +93,11 @@ class CSharpArchitecturalAuditor:
         project_path: str,
         include_patterns: List[str] = None
     ) -> Dict:
-        """
-        Analyze an entire C# project or solution.
-
-        Args:
-            project_path: Path to project root or .csproj file
-            include_patterns: Optional glob patterns for files to include
-
-        Returns:
-            Dictionary with analysis results
-        """
+        """Analyze an entire C# project or solution."""
         project_root = Path(project_path)
         if project_root.is_file():
             project_root = project_root.parent
 
-        # Find all C# files
         cs_files = list(project_root.rglob("*.cs"))
 
         if include_patterns:
@@ -135,13 +108,19 @@ class CSharpArchitecturalAuditor:
 
         logger.info(f"Analyzing {len(cs_files)} C# files in {project_root}")
 
-        # Analyze each file
         all_types = []
         for cs_file in cs_files:
             try:
-                content = cs_file.read_text(encoding='utf-8')
+                for encoding in ['utf-8', 'utf-8-sig', 'windows-1252']:
+                    try:
+                        content = cs_file.read_text(encoding=encoding)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                else:
+                    logger.warning(f"Skipping {cs_file}: unsupported encoding")
+                    continue
 
-                # Check for Program.cs to extract DI registrations
                 if cs_file.name in ["Program.cs", "Startup.cs"]:
                     self.semantic_analyzer.extract_di_registrations(
                         content,
@@ -152,15 +131,10 @@ class CSharpArchitecturalAuditor:
                 all_types.extend(types)
 
             except Exception as e:
-                logger.error(f"Error analyzing {cs_file}: {e}")
+                logger.error(f"Unexpected error analyzing {cs_file}: {e}", exc_info=True)
 
-        # Link DI registrations
         self.semantic_analyzer.link_di_registrations()
-
-        # Aggregate partial classes
         self.semantic_analyzer.aggregate_partial_classes()
-
-        # Run architectural audits
         audit_result = self.audit_engine.run_all_audits()
 
         return {
@@ -176,58 +150,38 @@ class CSharpArchitecturalAuditor:
         analysis_result: Dict,
         output_dir: str
     ):
-        """
-        Generate all report formats.
-
-        Args:
-            analysis_result: Result from analyze_csharp_project
-            output_dir: Directory to write reports
-        """
+        """Generate all report formats."""
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
         audit_result = analysis_result["audit_result"]
         types = analysis_result["types"]
 
-        # JSON Report
         json_path = output_path / "audit_report.json"
-        self.reporter.generate_json_report(audit_result, str(json_path))
+        self.reporter.generate_json_report(audit_result, str(json_path), types)
         logger.info(f"JSON report: {json_path}")
 
-        # Markdown Report
         md_path = output_path / "audit_report.md"
         self.reporter.generate_markdown_report(audit_result, types, str(md_path))
         logger.info(f"Markdown report: {md_path}")
 
-        # SARIF Report (for IDE integration)
         sarif_path = output_path / "audit_report.sarif"
         self.reporter.generate_sarif_report(audit_result, str(sarif_path))
         logger.info(f"SARIF report: {sarif_path}")
 
-        # Console summary
         self.reporter.print_console_summary(audit_result)
 
     def convert_to_dna_patterns(
         self,
         types: List[CSharpTypeInfo]
     ) -> List[Pattern]:
-        """
-        Convert analyzed types to DNA Pattern format for storage.
-
-        Args:
-            types: List of analyzed type information
-
-        Returns:
-            List of Pattern objects ready for DNA storage
-        """
+        """Convert analyzed types to DNA Pattern format for storage."""
         patterns = []
 
         for type_info in types:
-            # Only store high-quality patterns
-            if type_info.lcom_score > 0.8:  # Skip low-cohesion classes
+            if type_info.lcom_score > 0.8:
                 continue
 
-            # Map architectural role to pattern category
             category_map = {
                 ArchitecturalRole.CONTROLLER: PatternCategory.API,
                 ArchitecturalRole.SERVICE: PatternCategory.BUSINESS_LOGIC,
@@ -242,13 +196,9 @@ class CSharpArchitecturalAuditor:
                 PatternCategory.OTHER
             )
 
-            # Create pattern description
-            description = self._generate_pattern_description(type_info)
-
-            # Create pattern
             pattern = Pattern(
                 title=f"{type_info.architectural_role.value.replace('_', ' ').title()}: {type_info.name}",
-                description=description,
+                description=self._generate_pattern_description(type_info),
                 content=f"// Extracted from {type_info.file_path}\n// Namespace: {type_info.namespace}\n\n[Type definition would be here]",
                 category=category,
                 language=Language.CSHARP,
@@ -306,64 +256,116 @@ class CSharpArchitecturalAuditor:
         return " ".join(parts)
 
     def _calculate_quality_score(self, type_info: CSharpTypeInfo) -> int:
-        """
-        Calculate quality score (1-10) based on metrics.
-
-        High cohesion, low coupling, appropriate size = higher score.
-        """
+        """Calculate quality score (1-10) based on metrics."""
         score = 10
 
-        # Penalize low cohesion
         if type_info.lcom_score > 0.8:
             score -= 3
         elif type_info.lcom_score > 0.6:
             score -= 1
 
-        # Penalize high complexity
         if type_info.cyclomatic_complexity > 50:
             score -= 2
         elif type_info.cyclomatic_complexity > 30:
             score -= 1
 
-        # Penalize large size
         if type_info.lines_of_code > 500:
             score -= 2
         elif type_info.lines_of_code > 300:
             score -= 1
 
-        # Penalize high coupling
         if len(type_info.dependencies) > 15:
             score -= 2
         elif len(type_info.dependencies) > 10:
             score -= 1
 
-        # Bonus for good architectural role
         if type_info.architectural_role != ArchitecturalRole.UNKNOWN:
             score += 1
 
         return max(1, min(10, score))
 
+    def sync_github_csharp_repo(
+        self,
+        repo_name: str,
+        github_token: str,
+        min_quality_score: int = 5,
+        temp_dir: str = "/tmp/dna_repos"
+    ) -> Dict:
+        """
+        Sync and analyze C# patterns from GitHub repository.
 
-# Example usage function
+        Args:
+            repo_name: Repository name (owner/repo format)
+            github_token: GitHub personal access token
+            min_quality_score: Minimum quality score for patterns (1-10)
+            temp_dir: Temporary directory for cloning
+
+        Returns:
+            Dictionary with patterns and analysis statistics
+        """
+        from github_client import GitHubClient
+        from pathlib import Path
+        import shutil
+
+        try:
+            logger.info(f"Syncing GitHub C# repo: {repo_name}")
+
+            # Clone repository
+            client = GitHubClient(github_token)
+            repo_path = client.clone_repository(repo_name, temp_dir)
+
+            logger.info(f"Analyzing C# project at: {repo_path}")
+
+            # Analyze C# project
+            analysis_result = self.analyze_csharp_project(repo_path)
+
+            # Convert types to patterns
+            types = analysis_result.get("types", [])
+            patterns = self.convert_to_dna_patterns(types, repo_name)
+
+            # Filter by quality score
+            high_quality_patterns = [
+                p for p in patterns
+                if p.quality_score >= min_quality_score
+            ]
+
+            logger.info(
+                f"Extracted {len(high_quality_patterns)} high-quality patterns "
+                f"from {repo_name}"
+            )
+
+            return {
+                "repository": repo_name,
+                "total_patterns": len(patterns),
+                "high_quality_patterns": len(high_quality_patterns),
+                "patterns": high_quality_patterns,
+                "audit_result": analysis_result.get("audit_result"),
+                "violations": analysis_result.get("audit_result").violations
+                if "audit_result" in analysis_result
+                else []
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to sync GitHub repo {repo_name}: {e}", exc_info=True)
+            raise
+
+        finally:
+            # Cleanup temporary directory
+            repo_path = Path(temp_dir) / repo_name.split("/")[-1]
+            if repo_path.exists():
+                shutil.rmtree(repo_path, ignore_errors=True)
+
+
 def audit_csharp_project_example(project_path: str, output_dir: str):
-    """
-    Example function showing complete workflow.
-
-    Args:
-        project_path: Path to C# project
-        output_dir: Where to write reports
-    """
+    """Example function showing complete workflow."""
     auditor = CSharpArchitecturalAuditor()
 
-    # Analyze project
     print(f"Analyzing C# project at: {project_path}")
     results = auditor.analyze_csharp_project(project_path)
 
-    # Generate reports
     print(f"Generating reports to: {output_dir}")
     auditor.generate_reports(results, output_dir)
 
-    # Convert to DNA patterns for storage
     types = list(results["types"].values())
     patterns = auditor.convert_to_dna_patterns(types)
     print(f"Generated {len(patterns)} DNA patterns for storage")

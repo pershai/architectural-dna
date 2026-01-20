@@ -281,6 +281,101 @@ def get_embedding_info() -> str:
     return output
 
 
+@mcp.tool()
+def analyze_csharp_project(
+        project_path: str,
+        repo_name: str = "unknown-repo",
+        output_dir: str = "csharp_audit_reports"
+) -> str:
+    """
+    Analyze a C# project for architectural violations and patterns.
+
+    Uses advanced semantic analysis to detect architectural issues, generate
+    audit reports in multiple formats (JSON, Markdown, SARIF), and extract
+    architectural patterns for the DNA bank.
+
+    Args:
+        project_path: Path to C# project root or .csproj file
+        repo_name: Repository name for report naming (e.g., "mycompany/myproject")
+        output_dir: Directory for generated audit reports (default: csharp_audit_reports)
+
+    Returns:
+        Summary of analysis including violation counts and report locations
+    """
+    try:
+        from csharp_audit_integration import CSharpArchitecturalAuditor
+        from csharp_audit_reporter import CSharpAuditReporter
+        from pathlib import Path
+
+        logger.info(f"Starting C# project analysis: {project_path}")
+
+        auditor = CSharpArchitecturalAuditor()
+
+        # Analyze project
+        result = auditor.analyze_csharp_project(project_path)
+
+        # Generate reports
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        audit_result = result["audit_result"]
+        types = result["types"]
+
+        # JSON report
+        json_path = Path(output_dir) / f"{repo_name}_audit.json"
+        CSharpAuditReporter.generate_json_report(audit_result, str(json_path))
+
+        # Markdown report
+        md_path = Path(output_dir) / f"{repo_name}_audit.md"
+        CSharpAuditReporter.generate_markdown_report(
+            audit_result,
+            {t.name: t for t in types},
+            str(md_path)
+        )
+
+        # SARIF report (for IDE integration)
+        sarif_path = Path(output_dir) / f"{repo_name}_audit.sarif"
+        CSharpAuditReporter.generate_sarif_report(audit_result, str(sarif_path))
+
+        # Build summary
+        summary = f"""✅ **C# Project Analysis Complete**
+
+📊 **Summary:**
+  • Total Types Analyzed: {audit_result.total_types}
+  • Total Violations: {audit_result.total_violations}
+  • Violations by Severity:"""
+
+        for severity, count in sorted(audit_result.violations_by_severity.items()):
+            emoji = {"error": "🔴", "warning": "⚠️", "info": "ℹ️"}.get(severity, "📌")
+            summary += f"\n    {emoji} {severity.upper()}: {count}"
+
+        summary += """
+
+📁 **Reports Generated:**"""
+        summary += f"\n  • JSON: `{json_path}`"
+        summary += f"\n  • Markdown: `{md_path}`"
+        summary += f"\n  • SARIF (IDE): `{sarif_path}`"
+
+        summary += "\n\n🎯 **Top 5 Rules Violated:**"
+        for i, (rule_id, count) in enumerate(
+            sorted(
+                audit_result.violations_by_rule.items(),
+                key=lambda x: -x[1]
+            )[:5],
+            1
+        ):
+            summary += f"\n  {i}. {rule_id}: {count} violations"
+
+        logger.info(f"C# analysis completed successfully for {repo_name}")
+
+        return summary
+
+    except ImportError as e:
+        return f"❌ Error: C# audit modules not available - {e}"
+    except Exception as e:
+        logger.error(f"C# project analysis failed: {e}", exc_info=True)
+        return f"❌ Error analyzing C# project: {str(e)}"
+
+
 def apply_header_overrides(headers: dict) -> dict:
     """Apply environment overrides from request headers.
 

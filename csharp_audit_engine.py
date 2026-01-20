@@ -9,6 +9,8 @@ Implements advanced architectural rules for C# projects including:
 
 import re
 import logging
+import yaml
+from pathlib import Path
 from typing import List, Dict, Set, Optional, Any
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -48,13 +50,45 @@ class AuditResult:
 class CSharpAuditEngine:
     """Advanced architectural audit engine for C# codebases."""
 
-    def __init__(self, analyzer: CSharpSemanticAnalyzer):
+    def __init__(self, analyzer: CSharpSemanticAnalyzer, config_path: str = "config.yaml"):
         self.analyzer = analyzer
         self.rules: Dict[str, AuditRule] = {}
         self.violations: List[ArchitecturalViolation] = []
 
+        # Load configuration
+        self.config = self._load_config(config_path)
+
         # Initialize default rules
         self._initialize_rules()
+
+    def _load_config(self, config_path: str) -> Dict:
+        """Load C# audit configuration from YAML file."""
+        try:
+            config_file = Path(config_path)
+            if config_file.exists():
+                with open(config_file) as f:
+                    config = yaml.safe_load(f)
+                    return config.get("csharp_audit", {})
+        except Exception as e:
+            logger.warning(f"Failed to load config from {config_path}: {e}")
+
+        # Return defaults if config not found
+        return {
+            "metrics": {
+                "lcom_threshold": 0.8,
+                "loc_threshold": 500,
+                "cyclomatic_complexity_limit": 15
+            },
+            "dependencies": {
+                "max_per_class": 7,
+                "max_per_namespace": 50
+            },
+            "patterns": {
+                "include_partial_classes": True,
+                "extract_di_registrations": True,
+                "detect_async_patterns": True
+            }
+        }
 
     def _initialize_rules(self):
         """Initialize default architectural rules."""
@@ -160,26 +194,22 @@ class CSharpAuditEngine:
         rule2 = self.rules["MEDIATR_002"]
 
         for type_name, type_info in self.analyzer.types.items():
-            # Check handlers only access Domain
             if type_info.architectural_role == ArchitecturalRole.HANDLER:
                 for dep in type_info.dependencies:
                     dep_type = self.analyzer.types.get(dep)
-                    if dep_type:
-                        # Check if dependency is outside Domain layer
-                        if dep_type.namespace and not any(
-                            layer in dep_type.namespace
-                            for layer in ["Domain", "Handler", "Common"]
-                        ):
-                            violations.append(ArchitecturalViolation(
-                                rule_id=rule1.rule_id,
-                                severity=rule1.severity,
-                                message=f"Handler '{type_name}' depends on '{dep}' from {dep_type.namespace} (should only depend on Domain)",
-                                type_name=type_name,
-                                file_path=type_info.file_path,
-                                suggestion="Handlers should only reference Domain entities and value objects"
-                            ))
+                    if dep_type and dep_type.namespace and not any(
+                        layer in dep_type.namespace
+                        for layer in ["Domain", "Handler", "Common"]
+                    ):
+                        violations.append(ArchitecturalViolation(
+                            rule_id=rule1.rule_id,
+                            severity=rule1.severity,
+                            message=f"Handler '{type_name}' depends on '{dep}' from {dep_type.namespace} (should only depend on Domain)",
+                            type_name=type_name,
+                            file_path=type_info.file_path,
+                            suggestion="Handlers should only reference Domain entities and value objects"
+                        ))
 
-            # Check controllers only use IMediator
             if type_info.architectural_role == ArchitecturalRole.CONTROLLER:
                 for dep in type_info.dependencies:
                     if "Handler" in dep and dep != "IMediator":
@@ -199,25 +229,19 @@ class CSharpAuditEngine:
         violations = []
         rule = self.rules["DATA_001"]
 
-        forbidden_namespaces = rule.configuration["forbidden_namespaces"]
-        forbidden_layers = rule.configuration["forbidden_layers"]
-
         for type_name, type_info in self.analyzer.types.items():
-            # Check if type is in a forbidden layer
             in_forbidden_layer = any(
                 layer in type_info.namespace or layer in type_info.file_path
-                for layer in forbidden_layers
+                for layer in rule.configuration["forbidden_layers"]
             )
 
             if in_forbidden_layer:
-                # Check dependencies for SQL libraries
                 for dep in type_info.dependencies:
                     if dep.startswith("__SQL__"):
-                        sql_namespace = dep.replace("__SQL__", "")
                         violations.append(ArchitecturalViolation(
                             rule_id=rule.rule_id,
                             severity=rule.severity,
-                            message=f"Type '{type_name}' in {type_info.namespace} directly references {sql_namespace}",
+                            message=f"Type '{type_name}' in {type_info.namespace} directly references {dep.replace('__SQL__', '')}",
                             type_name=type_name,
                             file_path=type_info.file_path,
                             suggestion="Move SQL access to Infrastructure/Repository layer and use interfaces"
@@ -230,18 +254,13 @@ class CSharpAuditEngine:
         violations = []
         rule = self.rules["ARCH_001"]
 
-        # Build namespace dependency graph
         namespace_deps = defaultdict(set)
-
         for type_info in self.analyzer.types.values():
-            source_ns = type_info.namespace
-
             for dep_name in type_info.dependencies:
                 dep_type = self.analyzer.types.get(dep_name)
-                if dep_type and dep_type.namespace != source_ns:
-                    namespace_deps[source_ns].add(dep_type.namespace)
+                if dep_type and dep_type.namespace != type_info.namespace:
+                    namespace_deps[type_info.namespace].add(dep_type.namespace)
 
-        # Detect cycles using DFS
         def find_cycle(node, visited, rec_stack, path):
             visited.add(node)
             rec_stack.add(node)
@@ -252,7 +271,6 @@ class CSharpAuditEngine:
                     if find_cycle(neighbor, visited, rec_stack, path):
                         return True
                 elif neighbor in rec_stack:
-                    # Found cycle
                     cycle_start = path.index(neighbor)
                     cycle = path[cycle_start:] + [neighbor]
                     violations.append(ArchitecturalViolation(
@@ -270,7 +288,7 @@ class CSharpAuditEngine:
             return False
 
         visited = set()
-        for namespace in namespace_deps.keys():
+        for namespace in namespace_deps:
             if namespace not in visited:
                 find_cycle(namespace, visited, set(), [])
 
@@ -281,29 +299,23 @@ class CSharpAuditEngine:
         violations = []
         rule = self.rules["DESIGN_001"]
 
-        lcom_threshold = rule.configuration["lcom_threshold"]
-        loc_threshold = rule.configuration["loc_threshold"]
+        metrics_config = self.config.get("metrics", {})
+        lcom_threshold = metrics_config.get("lcom_threshold", 0.8)
+        loc_threshold = metrics_config.get("loc_threshold", 500)
 
         for type_name, type_info in self.analyzer.types.items():
-            is_god_object = False
             reasons = []
 
-            # Check LCOM
             if type_info.lcom_score > lcom_threshold:
-                is_god_object = True
                 reasons.append(f"Low cohesion (LCOM={type_info.lcom_score:.2f})")
 
-            # Check LOC
             if type_info.lines_of_code > loc_threshold:
-                is_god_object = True
                 reasons.append(f"Too many lines ({type_info.lines_of_code} LOC)")
 
-            # Check number of dependencies
             if len(type_info.dependencies) > 10:
-                is_god_object = True
                 reasons.append(f"Too many dependencies ({len(type_info.dependencies)})")
 
-            if is_god_object:
+            if reasons:
                 violations.append(ArchitecturalViolation(
                     rule_id=rule.rule_id,
                     severity=rule.severity,
@@ -437,7 +449,6 @@ class CSharpAuditEngine:
         """Run all enabled audit rules."""
         all_violations = []
 
-        # Run each audit
         audit_methods = [
             self.audit_mediatr_pattern,
             self.audit_sql_access,
@@ -451,13 +462,10 @@ class CSharpAuditEngine:
 
         for audit_method in audit_methods:
             try:
-                violations = audit_method()
-                all_violations.extend(violations)
+                all_violations.extend(audit_method())
             except Exception as e:
-                # Log error but continue with other audits
                 logger.error(f"Error in {audit_method.__name__}: {e}")
 
-        # Compile results
         violations_by_severity = defaultdict(int)
         violations_by_rule = defaultdict(int)
 
@@ -465,11 +473,11 @@ class CSharpAuditEngine:
             violations_by_severity[violation.severity] += 1
             violations_by_rule[violation.rule_id] += 1
 
-        # Calculate metrics
+        types_by_count = len(self.analyzer.types) if self.analyzer.types else 0
         metrics = {
-            "total_types": len(self.analyzer.types),
-            "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values()) / len(self.analyzer.types) if self.analyzer.types else 0,
-            "avg_dependencies": sum(len(t.dependencies) for t in self.analyzer.types.values()) / len(self.analyzer.types) if self.analyzer.types else 0,
+            "total_types": types_by_count,
+            "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
+            "avg_dependencies": sum(len(t.dependencies) for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
             "types_by_role": defaultdict(int),
             "namespaces_analyzed": len(set(t.namespace for t in self.analyzer.types.values())),
         }

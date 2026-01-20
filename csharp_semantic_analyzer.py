@@ -9,6 +9,7 @@ This module provides deep architectural analysis including:
 
 import re
 import ast
+import yaml
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Tuple
 from pathlib import Path
@@ -16,6 +17,7 @@ from collections import defaultdict
 from enum import Enum
 
 from models import Language, PatternCategory
+from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
 
 
 class ArchitecturalRole(str, Enum):
@@ -90,6 +92,9 @@ class CSharpTypeInfo:
     # Async safety violations (line_number, message)
     async_violations: List[Tuple[int, str]] = field(default_factory=list)
 
+    # Detected design patterns
+    design_patterns: List[dict] = field(default_factory=list)  # List of {pattern, confidence, indicators}
+
 
 @dataclass
 class ArchitecturalViolation:
@@ -134,17 +139,29 @@ class CSharpSemanticAnalyzer:
         ]
     }
 
-    def __init__(self):
+    def __init__(self, config_path: str = "config.yaml"):
         self.types: Dict[str, CSharpTypeInfo] = {}
         self.di_registrations: List[DIRegistration] = []
-        self.violations: List[ArchitecturalViolation] = []
+        self.config = self._load_config(config_path)
+        self.pattern_detector = CSharpPatternDetector()
+
+    def _load_config(self, config_path: str) -> Dict:
+        """Load C# configuration from YAML file."""
+        try:
+            config_file = Path(config_path)
+            if config_file.exists():
+                with open(config_file) as f:
+                    config = yaml.safe_load(f)
+                    return config.get("csharp_audit", {})
+        except Exception:
+            pass  # Return empty config on error
+
+        return {}
 
     def extract_attributes(self, content: str, start_line: int) -> List[CSharpAttribute]:
         """Extract C# attributes from code."""
         attributes = []
         lines = content.split("\n")
-
-        # Attribute pattern: [AttributeName] or [AttributeName(args)]
         attr_pattern = re.compile(r'^\s*\[(\w+)(?:\(([^]]*)\))?\]')
 
         for i in range(max(0, start_line - 10), min(len(lines), start_line + 5)):
@@ -197,14 +214,9 @@ class CSharpSemanticAnalyzer:
     def extract_di_registrations(self, program_cs_content: str, file_path: str) -> List[DIRegistration]:
         """Extract dependency injection registrations from Program.cs or Startup.cs."""
         registrations = []
-
-        # Patterns for DI registration
         patterns = [
-            # services.AddTransient<IService, ServiceImpl>()
             r'Add(Transient|Scoped|Singleton)<(\w+),\s*(\w+)>\(',
-            # services.AddTransient<IService>(sp => new ServiceImpl())
             r'Add(Transient|Scoped|Singleton)<(\w+)>\([^)]*new\s+(\w+)',
-            # services.AddTransient(typeof(IService), typeof(ServiceImpl))
             r'Add(Transient|Scoped|Singleton)\(typeof\((\w+)\),\s*typeof\((\w+)\)',
         ]
 
@@ -230,27 +242,21 @@ class CSharpSemanticAnalyzer:
         """Extract type dependencies from C# code."""
         dependencies = set()
 
-        # Extract from field/property declarations
         field_pattern = re.compile(r'(?:private|public|protected|internal)\s+(?:readonly\s+)?(\w+(?:<\w+>)?)\s+\w+')
         for match in field_pattern.finditer(content):
-            dep_type = match.group(1)
-            # Remove generic parameters for now
-            dep_type = re.sub(r'<.*?>', '', dep_type)
-            if dep_type and dep_type[0].isupper():  # Type names start with capital
+            dep_type = re.sub(r'<.*?>', '', match.group(1))
+            if dep_type and dep_type[0].isupper():
                 dependencies.add(dep_type)
 
-        # Extract from method parameters and return types
         method_pattern = re.compile(r'(?:public|private|protected|internal)\s+(?:async\s+)?(?:Task<)?(\w+)>?\s+\w+\([^)]*\)')
         for match in method_pattern.finditer(content):
             return_type = match.group(1)
             if return_type and return_type[0].isupper() and return_type not in ['Task', 'void']:
                 dependencies.add(return_type)
 
-        # Extract from using statements (namespace level)
         using_pattern = re.compile(r'using\s+([\w.]+);')
         for match in using_pattern.finditer(content):
             namespace = match.group(1)
-            # Check for SQL-related namespaces for architectural rules
             if 'SqlClient' in namespace or 'Dapper' in namespace:
                 dependencies.add(f"__SQL__{namespace}")
 
@@ -260,7 +266,6 @@ class CSharpSemanticAnalyzer:
         """Extract class members for cohesion analysis."""
         members = []
 
-        # Extract fields
         field_pattern = re.compile(
             r'(?:private|public|protected|internal)\s+(?:readonly\s+)?(?:static\s+)?(\w+)\s+(\w+)\s*[;=]',
             re.MULTILINE
@@ -273,7 +278,6 @@ class CSharpSemanticAnalyzer:
                 is_static='static' in match.group(0)
             ))
 
-        # Extract properties
         property_pattern = re.compile(
             r'(?:public|private|protected|internal)\s+(?:static\s+)?(\w+)\s+(\w+)\s*\{',
             re.MULTILINE
@@ -286,7 +290,6 @@ class CSharpSemanticAnalyzer:
                 is_static='static' in match.group(0)
             ))
 
-        # Extract methods
         method_pattern = re.compile(
             r'(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:Task<)?(\w+)>?\s+(\w+)\s*\(',
             re.MULTILINE
@@ -302,30 +305,21 @@ class CSharpSemanticAnalyzer:
         return members
 
     def calculate_lcom(self, members: List[CSharpMember], content: str) -> float:
-        """
-        Calculate Lack of Cohesion in Methods (LCOM4).
-
-        LCOM = 1 - (sum of method-field accesses / (methods * fields))
-        Higher values indicate lower cohesion (bad).
-        """
+        """Calculate Lack of Cohesion in Methods (LCOM4)."""
         methods = [m for m in members if m.member_type == "method" and not m.is_static]
         fields = [m for m in members if m.member_type in ("field", "property") and not m.is_static]
 
         if not methods or not fields:
             return 0.0
 
-        # Count field accesses in each method
         total_accesses = 0
         for method in methods:
             for field in fields:
-                # Simple check: does method body contain field name?
-                # In production, use proper AST parsing
                 method_start = content.find(f"def {method.name}")
                 if method_start == -1:
                     method_start = content.find(f"{method.name}(")
 
                 if method_start != -1:
-                    # Look ahead ~200 chars for field reference
                     method_region = content[method_start:method_start+500]
                     if re.search(rf'\b{field.name}\b', method_region):
                         total_accesses += 1
@@ -376,33 +370,39 @@ class CSharpSemanticAnalyzer:
             content.count(keyword) for keyword in decision_keywords
         )
 
+        # Detect design patterns
+        if self.config.get("patterns", {}).get("detect_design_patterns", True):
+            try:
+                patterns = self.pattern_detector.detect_patterns(content, type_info.name)
+                type_info.design_patterns = [
+                    {
+                        "pattern": p.pattern.value,
+                        "confidence": p.confidence,
+                        "indicators": p.indicators,
+                        "description": p.description
+                    }
+                    for p in patterns
+                ]
+            except Exception as e:
+                # Gracefully skip pattern detection on error
+                pass
+
         # Store in analyzer
         self.types[type_info.name] = type_info
 
         return type_info
 
     def calculate_instability(self, namespace: str) -> float:
-        """
-        Calculate Instability Index for a namespace.
-
-        Instability = Ce / (Ca + Ce)
-        Where:
-        - Ce = Efferent Coupling (outgoing dependencies)
-        - Ca = Afferent Coupling (incoming dependencies)
-
-        Range: 0 (stable) to 1 (unstable)
-        """
+        """Calculate Instability Index for a namespace (0=stable, 1=unstable)."""
         types_in_namespace = [t for t in self.types.values() if t.namespace == namespace]
 
         if not types_in_namespace:
             return 0.0
 
-        # Efferent: dependencies going out
         efferent = set()
         for type_info in types_in_namespace:
             efferent.update(type_info.dependencies)
 
-        # Afferent: dependencies coming in
         afferent = set()
         for type_info in types_in_namespace:
             afferent.update(type_info.dependents)
@@ -430,28 +430,21 @@ class CSharpSemanticAnalyzer:
         """Aggregate data from partial class declarations."""
         partial_groups = defaultdict(list)
 
-        # Group partial classes by name and namespace
         for type_name, type_info in self.types.items():
             if type_info.is_partial:
                 key = f"{type_info.namespace}.{type_info.name}"
                 partial_groups[key].append(type_info)
 
-        # Merge partial class data
         for key, partials in partial_groups.items():
             if len(partials) <= 1:
                 continue
 
-            # Use first as base
             base = partials[0]
             base.partial_locations = [p.file_path for p in partials]
 
-            # Aggregate from others
             for other in partials[1:]:
                 base.members.extend(other.members)
                 base.attributes.extend(other.attributes)
                 base.dependencies.update(other.dependencies)
                 base.lines_of_code += other.lines_of_code
                 base.cyclomatic_complexity += other.cyclomatic_complexity
-
-            # Recalculate metrics
-            # Note: Would need full content to recalculate LCOM properly

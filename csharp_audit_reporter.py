@@ -19,7 +19,7 @@ class CSharpAuditReporter:
     """Generate architectural audit reports in various formats."""
 
     @staticmethod
-    def generate_json_report(result: AuditResult, output_path: str):
+    def generate_json_report(result: AuditResult, output_path: str, types: Dict[str, CSharpTypeInfo] = None):
         """Generate JSON format audit report."""
         report = {
             "metadata": {
@@ -47,6 +47,18 @@ class CSharpAuditReporter:
                 for v in result.violations
             ]
         }
+
+        if types:
+            patterns_section = {}
+            for type_name, type_info in types.items():
+                if hasattr(type_info, 'design_patterns') and type_info.design_patterns:
+                    patterns_section[type_name] = {
+                        "file": type_info.file_path,
+                        "namespace": type_info.namespace,
+                        "patterns": type_info.design_patterns
+                    }
+            if patterns_section:
+                report["design_patterns"] = patterns_section
 
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report, f, indent=2)
@@ -80,7 +92,6 @@ class CSharpAuditReporter:
         md.append(f"| Average LCOM | {result.metrics.get('avg_lcom', 0):.3f} |")
         md.append(f"| Average Dependencies | {result.metrics.get('avg_dependencies', 0):.1f} |")
 
-        # Types by Role
         md.append("\n### Types by Architectural Role")
         md.append("\n| Role | Count |")
         md.append("|------|-------|")
@@ -88,15 +99,12 @@ class CSharpAuditReporter:
         for role, count in sorted(types_by_role.items(), key=lambda x: -x[1]):
             md.append(f"| {role.replace('_', ' ').title()} | {count} |")
 
-        # Violations by Rule
         md.append("\n## Violations by Rule")
         for rule_id, count in sorted(result.violations_by_rule.items(), key=lambda x: -x[1]):
             md.append(f"\n### {rule_id} ({count} violations)")
-
-            # Group violations by this rule
             rule_violations = [v for v in result.violations if v.rule_id == rule_id]
 
-            for v in rule_violations[:10]:  # Limit to 10 per rule
+            for v in rule_violations[:10]:
                 md.append(f"\n**{v.type_name}** ({v.severity})")
                 md.append(f"- File: `{v.file_path}`")
                 if v.line_number:
@@ -108,10 +116,7 @@ class CSharpAuditReporter:
             if len(rule_violations) > 10:
                 md.append(f"\n... and {len(rule_violations) - 10} more")
 
-        # Top Offenders
         md.append("\n## Top Architectural Issues")
-
-        # Find types with most violations
         type_violation_count = {}
         for v in result.violations:
             type_violation_count[v.type_name] = type_violation_count.get(v.type_name, 0) + 1
@@ -122,7 +127,6 @@ class CSharpAuditReporter:
         for type_name, count in sorted(type_violation_count.items(), key=lambda x: -x[1])[:10]:
             md.append(f"| {type_name} | {count} |")
 
-        # God Objects
         god_objects = [
             t for t in types.values()
             if t.lcom_score > 0.8 or t.lines_of_code > 500
@@ -134,12 +138,36 @@ class CSharpAuditReporter:
             for t in sorted(god_objects, key=lambda x: -x.lcom_score)[:10]:
                 md.append(f"| {t.name} | {t.lcom_score:.3f} | {t.lines_of_code} | {len(t.dependencies)} |")
 
-        # Instability Analysis
+        types_with_patterns = [
+            t for t in types.values()
+            if hasattr(t, 'design_patterns') and t.design_patterns
+        ]
+        if types_with_patterns:
+            md.append("\n## Detected Design Patterns")
+            md.append("\nThe following design patterns were detected in your codebase:")
+
+            for type_info in sorted(types_with_patterns, key=lambda x: x.name):
+                md.append(f"\n### {type_info.name} ({type_info.namespace})")
+                md.append(f"- **File:** `{type_info.file_path}`")
+                md.append(f"- **Type Kind:** {type_info.type_kind}")
+
+                if type_info.design_patterns:
+                    md.append("\n#### Patterns Detected:")
+                    for pattern in sorted(type_info.design_patterns, key=lambda x: -x["confidence"]):
+                        pattern_name = pattern["pattern"].replace("_", " ").title()
+                        confidence_pct = int(pattern["confidence"] * 100)
+                        confidence_bar = "█" * int(confidence_pct / 10) + "░" * (10 - int(confidence_pct / 10))
+                        md.append(f"\n- **{pattern_name}** `{confidence_bar}` {confidence_pct}%")
+                        md.append(f"  - {pattern['description']}")
+                        if pattern["indicators"]:
+                            md.append("  - Indicators:")
+                            for indicator in pattern["indicators"]:
+                                md.append(f"    - {indicator}")
+
         md.append("\n## Namespace Stability Analysis")
         md.append("\n| Namespace | Instability | Classification |")
         md.append("|-----------|-------------|----------------|")
 
-        # Calculate instability for each namespace
         from csharp_semantic_analyzer import CSharpSemanticAnalyzer
         analyzer = CSharpSemanticAnalyzer()
         analyzer.types = types
@@ -186,12 +214,7 @@ class CSharpAuditReporter:
 
     @staticmethod
     def generate_sarif_report(result: AuditResult, output_path: str):
-        """
-        Generate SARIF format report for IDE integration.
-
-        SARIF (Static Analysis Results Interchange Format) is supported by
-        Visual Studio, VS Code, and GitHub Code Scanning.
-        """
+        """Generate SARIF format report for IDE integration."""
         sarif = {
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
             "version": "2.1.0",
@@ -210,7 +233,6 @@ class CSharpAuditReporter:
             ]
         }
 
-        # Add rules
         rule_definitions = {}
         for v in result.violations:
             if v.rule_id not in rule_definitions:
@@ -233,7 +255,6 @@ class CSharpAuditReporter:
 
         sarif["runs"][0]["tool"]["driver"]["rules"] = list(rule_definitions.values())
 
-        # Add results
         for v in result.violations:
             result_entry = {
                 "ruleId": v.rule_id,
