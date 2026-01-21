@@ -38,6 +38,19 @@ class CSharpAnalysisConstants:
     FACTORY_INDICATORS: int = 3
     BUILDER_INDICATORS: int = 3
     REPOSITORY_INDICATORS: int = 3
+    DECORATOR_INDICATORS: int = 3
+    ADAPTER_INDICATORS: int = 3
+    FACADE_INDICATORS: int = 2
+    PROXY_INDICATORS: int = 2
+    OBSERVER_INDICATORS: int = 3
+    STRATEGY_INDICATORS: int = 3
+    COMMAND_INDICATORS: int = 3
+    CHAIN_OF_RESPONSIBILITY_INDICATORS: int = 3
+    STATE_INDICATORS: int = 3
+    UNIT_OF_WORK_INDICATORS: int = 3
+    CQRS_INDICATORS: int = 3
+    EVENT_SOURCING_INDICATORS: int = 3
+    PUBSUB_INDICATORS: int = 3
 
 
 # Global instance for easy access

@@ -8,7 +8,6 @@ This module provides deep architectural analysis including:
 """
 
 import re
-import ast
 import yaml
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Tuple
@@ -414,9 +413,10 @@ class CSharpSemanticAnalyzer:
         # Best practice violations (warnings, not errors)
         best_practice_patterns = [
             (r'async\s+void\s+\w+\s*\([^)]*\)', 'async void should only be used for event handlers'),
-            (r'async\s+Task.*\([^)]*\)\s*{(?!.*CancellationToken)',
-             'Async method should accept CancellationToken parameter'),
         ]
+
+        # CancellationToken check (separate logic for better accuracy)
+        cancellation_token_pattern = r'async\s+Task.*\((?![^)]*CancellationToken)'
 
         for i, line in enumerate(content.split("\n"), 1):
             # Check blocking patterns
@@ -429,6 +429,10 @@ class CSharpSemanticAnalyzer:
                 for pattern, message in best_practice_patterns:
                     if re.search(pattern, line):
                         violations.append((i, f"Best practice: {message}"))
+
+                # Check CancellationToken for async Task methods
+                if re.search(cancellation_token_pattern, line):
+                    violations.append((i, "Best practice: Async method should accept CancellationToken parameter"))
 
         return violations
 

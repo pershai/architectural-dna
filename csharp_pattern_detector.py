@@ -246,7 +246,7 @@ class CSharpPatternDetector:
         if re.search(r'public\s+' + type_name + r'\s*\(\s*I\w+\s+', code):
             indicators.append("Takes interface in constructor")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.DECORATOR_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -275,7 +275,7 @@ class CSharpPatternDetector:
         if 'Adapter' in type_name or 'Wrapper' in type_name:
             indicators.append("Adapter/Wrapper in name")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.ADAPTER_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
@@ -302,7 +302,7 @@ class CSharpPatternDetector:
         if simple_methods >= 2:
             indicators.append("Simple public interface")
 
-        confidence = len(indicators) / 2.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.FACADE_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH:
             matches.append(PatternMatch(
@@ -327,7 +327,7 @@ class CSharpPatternDetector:
         if re.search(r'if\s*\([^)]*\w+\s*==\s*null\)|lock\s*\(|IsAuthorized|Permission', code, re.IGNORECASE):
             indicators.append("Access control or lazy loading")
 
-        confidence = len(indicators) / 2.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.PROXY_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -358,7 +358,7 @@ class CSharpPatternDetector:
         if re.search(r'IObserver|IObservable|INotifyPropertyChanged', code):
             indicators.append("Standard observer interface")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.OBSERVER_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -387,7 +387,7 @@ class CSharpPatternDetector:
         if re.search(r'Strategy\s*=|SetStrategy|ChangeStrategy', code):
             indicators.append("Strategy assignment")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.STRATEGY_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -416,7 +416,7 @@ class CSharpPatternDetector:
         if re.search(r'Queue.*Command|List.*Command|command.*history', code, re.IGNORECASE):
             indicators.append("Command queue/history")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.COMMAND_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -445,7 +445,7 @@ class CSharpPatternDetector:
         if re.search(r'\w+[Nn]ext\.\w+\(|\w+_successor\.\w+\(', code):
             indicators.append("Delegates to next handler")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.CHAIN_OF_RESPONSIBILITY_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -474,7 +474,7 @@ class CSharpPatternDetector:
         if re.search(r'_state\.\w+\(|CurrentState\.\w+\(', code):
             indicators.append("Delegates to state")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.STATE_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -534,7 +534,7 @@ class CSharpPatternDetector:
         if re.search(r'using\s*\(.*Transaction|BeginTransaction|RollbackAsync', code):
             indicators.append("Transaction handling")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.UNIT_OF_WORK_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -563,7 +563,7 @@ class CSharpPatternDetector:
         if 'Command' in type_name and 'Query' in type_name:
             indicators.append("CQRS in name")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.CQRS_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
@@ -592,7 +592,7 @@ class CSharpPatternDetector:
         if re.search(r'Replay|Rebuild|Reconstruct', code):
             indicators.append("Event replay")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.EVENT_SOURCING_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
@@ -621,7 +621,7 @@ class CSharpPatternDetector:
         if re.search(r'async\s+Task.*Event|await.*Event', code):
             indicators.append("Async event handling")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.PUBSUB_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
