@@ -18,6 +18,7 @@ from enum import Enum
 
 from models import Language, PatternCategory
 from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
+from csharp_constants import CSHARP_CONSTANTS
 
 
 class ArchitecturalRole(str, Enum):
@@ -164,7 +165,10 @@ class CSharpSemanticAnalyzer:
         lines = content.split("\n")
         attr_pattern = re.compile(r'^\s*\[(\w+)(?:\(([^]]*)\))?\]')
 
-        for i in range(max(0, start_line - 10), min(len(lines), start_line + 5)):
+        search_start = max(0, start_line - CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_BEFORE)
+        search_end = min(len(lines), start_line + CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_AFTER)
+
+        for i in range(search_start, search_end):
             match = attr_pattern.match(lines[i])
             if match:
                 attr_name = match.group(1)
@@ -314,14 +318,19 @@ class CSharpSemanticAnalyzer:
 
         total_accesses = 0
         for method in methods:
-            for field in fields:
-                method_start = content.find(f"def {method.name}")
-                if method_start == -1:
-                    method_start = content.find(f"{method.name}(")
+            # Use C# method pattern instead of Python 'def' keyword
+            method_pattern = rf'(?:public|private|protected|internal)\s+.*\s+{re.escape(method.name)}\s*\('
+            method_match = re.search(method_pattern, content)
 
-                if method_start != -1:
-                    method_region = content[method_start:method_start+500]
-                    if re.search(rf'\b{field.name}\b', method_region):
+            if method_match:
+                method_start = method_match.start()
+                # Find method end by counting braces
+                method_end = self._find_method_end(content, method_start)
+                method_region = content[method_start:method_end]
+
+                # Check if this method accesses each field
+                for field in fields:
+                    if re.search(rf'\b{re.escape(field.name)}\b', method_region):
                         total_accesses += 1
                         method.accessed_members.add(field.name)
 
@@ -332,20 +341,94 @@ class CSharpSemanticAnalyzer:
         lcom = 1.0 - (total_accesses / max_accesses)
         return round(lcom, 3)
 
+    def _find_method_end(self, content: str, start: int) -> int:
+        """Find the end of a C# method by counting braces."""
+        brace_count = 0
+        in_method = False
+        i = start
+
+        while i < len(content):
+            char = content[i]
+            if char == '{':
+                brace_count += 1
+                in_method = True
+            elif char == '}':
+                brace_count -= 1
+                if in_method and brace_count == 0:
+                    return i + 1
+
+            i += 1
+
+        # If we didn't find closing brace, return a reasonable default
+        return min(start + CSHARP_CONSTANTS.METHOD_REGION_FALLBACK, len(content))
+
+    def _calculate_cyclomatic_complexity(self, content: str) -> int:
+        """
+        Calculate cyclomatic complexity by counting decision points.
+        Uses regex with word boundaries to avoid matching in comments/strings.
+        """
+        # Remove single-line comments
+        content_no_comments = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
+
+        # Remove multi-line comments
+        content_no_comments = re.sub(r'/\*.*?\*/', '', content_no_comments, flags=re.DOTALL)
+
+        # Remove string literals to avoid false matches
+        content_cleaned = re.sub(r'"(?:[^"\\]|\\.)*"', '', content_no_comments)
+        content_cleaned = re.sub(r"'(?:[^'\\]|\\.)*'", '', content_cleaned)
+
+        # Count decision points with word boundaries
+        decision_patterns = [
+            r'\bif\b',
+            r'\belse\s+if\b',  # Count else-if as separate decision
+            r'\bwhile\b',
+            r'\bfor\b',
+            r'\bforeach\b',
+            r'\bcase\b',  # Each case is a decision point
+            r'\bcatch\b',  # Exception handlers add complexity
+            r'&&',  # Logical AND
+            r'\|\|',  # Logical OR
+            r'\?(?!=)',  # Ternary operator (but not null-coalescing ??)
+        ]
+
+        complexity = 1  # Base complexity
+        for pattern in decision_patterns:
+            complexity += len(re.findall(pattern, content_cleaned))
+
+        return complexity
+
     def detect_async_over_sync(self, content: str) -> List[Tuple[int, str]]:
-        """Detect async-over-sync anti-patterns (.Result, .Wait())."""
+        """Detect async-over-sync anti-patterns and async best practice violations."""
         violations = []
 
-        patterns = [
+        # Anti-patterns that block async code
+        blocking_patterns = [
             (r'\.Result\b', 'Using .Result blocks the thread (async-over-sync)'),
             (r'\.Wait\(\)', 'Using .Wait() blocks the thread (async-over-sync)'),
             (r'\.GetAwaiter\(\)\.GetResult\(\)', 'Using GetResult() blocks the thread'),
+            (r'Task\.Run\([^)]*\)\.Wait\(\)', 'Task.Run().Wait() is async-over-sync anti-pattern'),
+            (r'Task\.WaitAll\(', 'Task.WaitAll() blocks the thread, prefer await Task.WhenAll()'),
+            (r'Task\.WaitAny\(', 'Task.WaitAny() blocks the thread, prefer await Task.WhenAny()'),
+        ]
+
+        # Best practice violations (warnings, not errors)
+        best_practice_patterns = [
+            (r'async\s+void\s+\w+\s*\([^)]*\)', 'async void should only be used for event handlers'),
+            (r'async\s+Task.*\([^)]*\)\s*{(?!.*CancellationToken)',
+             'Async method should accept CancellationToken parameter'),
         ]
 
         for i, line in enumerate(content.split("\n"), 1):
-            for pattern, message in patterns:
+            # Check blocking patterns
+            for pattern, message in blocking_patterns:
                 if re.search(pattern, line):
                     violations.append((i, message))
+
+            # Check best practices (only for public/internal methods)
+            if re.search(r'^\s*(?:public|internal)\s+async', line):
+                for pattern, message in best_practice_patterns:
+                    if re.search(pattern, line):
+                        violations.append((i, f"Best practice: {message}"))
 
         return violations
 
@@ -364,11 +447,8 @@ class CSharpSemanticAnalyzer:
         lines = [l.strip() for l in content.split("\n") if l.strip() and not l.strip().startswith("//")]
         type_info.lines_of_code = len(lines)
 
-        # Simple cyclomatic complexity (count decision points)
-        decision_keywords = ['if', 'else', 'while', 'for', 'foreach', 'switch', 'case', '&&', '||', '?']
-        type_info.cyclomatic_complexity = sum(
-            content.count(keyword) for keyword in decision_keywords
-        )
+        # Calculate cyclomatic complexity with proper regex to avoid false positives
+        type_info.cyclomatic_complexity = self._calculate_cyclomatic_complexity(content)
 
         # Detect design patterns
         if self.config.get("patterns", {}).get("detect_design_patterns", True):

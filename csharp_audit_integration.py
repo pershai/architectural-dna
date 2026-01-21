@@ -42,6 +42,10 @@ class CSharpArchitecturalAuditor:
         content: str
     ) -> List[CSharpTypeInfo]:
         """Analyze a C# file with full semantic enrichment."""
+        if not content or not content.strip():
+            logger.warning(f"Empty content for file: {file_path}")
+            return []
+
         chunks = self.pattern_extractor.extract_chunks(
             content,
             file_path,
@@ -94,11 +98,27 @@ class CSharpArchitecturalAuditor:
         include_patterns: List[str] = None
     ) -> Dict:
         """Analyze an entire C# project or solution."""
+        if not project_path:
+            raise ValueError("project_path cannot be empty")
+
         project_root = Path(project_path)
+        if not project_root.exists():
+            raise FileNotFoundError(f"Project path does not exist: {project_path}")
+
         if project_root.is_file():
             project_root = project_root.parent
 
         cs_files = list(project_root.rglob("*.cs"))
+
+        if not cs_files:
+            logger.warning(f"No C# files found in {project_root}")
+            return {
+                "project_path": str(project_root),
+                "files_analyzed": 0,
+                "types_analyzed": 0,
+                "types": {},
+                "audit_result": None
+            }
 
         if include_patterns:
             cs_files = [
@@ -176,6 +196,13 @@ class CSharpArchitecturalAuditor:
         types: List[CSharpTypeInfo]
     ) -> List[Pattern]:
         """Convert analyzed types to DNA Pattern format for storage."""
+        if not types:
+            logger.warning("No types provided to convert_to_dna_patterns")
+            return []
+
+        if not isinstance(types, list):
+            raise TypeError(f"Expected list of CSharpTypeInfo, got {type(types)}")
+
         patterns = []
 
         for type_info in types:
@@ -319,9 +346,10 @@ class CSharpArchitecturalAuditor:
             # Analyze C# project
             analysis_result = self.analyze_csharp_project(repo_path)
 
-            # Convert types to patterns
-            types = analysis_result.get("types", [])
-            patterns = self.convert_to_dna_patterns(types, repo_name)
+            # Convert types to patterns (types is a dict, convert to list)
+            types_dict = analysis_result.get("types", {})
+            types_list = list(types_dict.values()) if types_dict else []
+            patterns = self.convert_to_dna_patterns(types_list)
 
             # Filter by quality score
             high_quality_patterns = [

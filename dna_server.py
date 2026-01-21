@@ -318,17 +318,17 @@ def analyze_csharp_project(
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         audit_result = result["audit_result"]
-        types = result["types"]
+        types = result["types"]  # Already a Dict[str, CSharpTypeInfo]
 
         # JSON report
         json_path = Path(output_dir) / f"{repo_name}_audit.json"
-        CSharpAuditReporter.generate_json_report(audit_result, str(json_path))
+        CSharpAuditReporter.generate_json_report(audit_result, str(json_path), types)
 
         # Markdown report
         md_path = Path(output_dir) / f"{repo_name}_audit.md"
         CSharpAuditReporter.generate_markdown_report(
             audit_result,
-            {t.name: t for t in types},
+            types,
             str(md_path)
         )
 

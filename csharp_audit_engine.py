@@ -51,6 +51,11 @@ class CSharpAuditEngine:
     """Advanced architectural audit engine for C# codebases."""
 
     def __init__(self, analyzer: CSharpSemanticAnalyzer, config_path: str = "config.yaml"):
+        if not isinstance(analyzer, CSharpSemanticAnalyzer):
+            raise TypeError(
+                f"Expected CSharpSemanticAnalyzer instance, got {type(analyzer)}"
+            )
+
         self.analyzer = analyzer
         self.rules: Dict[str, AuditRule] = {}
         self.violations: List[ArchitecturalViolation] = []

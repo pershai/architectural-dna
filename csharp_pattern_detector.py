@@ -17,6 +17,8 @@ from typing import Dict, List, Set, Optional
 from dataclasses import dataclass
 from enum import Enum
 
+from csharp_constants import CSHARP_CONSTANTS
+
 
 class DesignPattern(str, Enum):
     """Common C# design patterns."""
@@ -66,6 +68,42 @@ class CSharpPatternDetector:
         """Initialize pattern detector."""
         self.patterns_found: Dict[str, List[PatternMatch]] = {}
 
+    def _create_pattern_match(
+        self,
+        pattern: DesignPattern,
+        indicators: List[str],
+        max_indicators: int,
+        confidence_threshold: float,
+        type_name: str
+    ) -> Optional[PatternMatch]:
+        """
+        Helper method to create a PatternMatch if confidence threshold is met.
+
+        Args:
+            pattern: The design pattern detected
+            indicators: List of indicator strings found
+            max_indicators: Maximum possible indicators for this pattern
+            confidence_threshold: Minimum confidence required (0.0-1.0)
+            type_name: Name of the type being analyzed
+
+        Returns:
+            PatternMatch if threshold met, None otherwise
+        """
+        if not indicators:
+            return None
+
+        confidence = len(indicators) / float(max_indicators)
+
+        if confidence >= confidence_threshold:
+            return PatternMatch(
+                pattern=pattern,
+                confidence=confidence,
+                indicators=indicators,
+                description=f"{pattern.value.replace('_', ' ').title()} pattern detected in {type_name}"
+            )
+
+        return None
+
     def detect_patterns(self, code: str, type_name: str) -> List[PatternMatch]:
         """
         Detect design patterns in C# code.
@@ -113,7 +151,6 @@ class CSharpPatternDetector:
 
     def _detect_singleton(self, code: str, type_name: str) -> List[PatternMatch]:
         """Detect Singleton pattern."""
-        matches = []
         indicators = []
 
         # Check for static instance
@@ -128,21 +165,18 @@ class CSharpPatternDetector:
         if re.search(r'public\s+static\s+' + type_name + r'\s+(?:Instance|Current|Default)', code):
             indicators.append("Public static property")
 
-        confidence = len(indicators) / 3.0
+        pattern_match = self._create_pattern_match(
+            DesignPattern.SINGLETON,
+            indicators,
+            CSHARP_CONSTANTS.SINGLETON_INDICATORS,
+            CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH,
+            type_name
+        )
 
-        if confidence >= 0.6:
-            matches.append(PatternMatch(
-                pattern=DesignPattern.SINGLETON,
-                confidence=confidence,
-                indicators=indicators,
-                description=f"Singleton pattern detected in {type_name}"
-            ))
-
-        return matches
+        return [pattern_match] if pattern_match else []
 
     def _detect_factory(self, code: str, type_name: str) -> List[PatternMatch]:
         """Detect Factory pattern."""
-        matches = []
         indicators = []
 
         # Check for static Create method
@@ -157,21 +191,18 @@ class CSharpPatternDetector:
         if re.search(r'switch\s*\(.*type.*\)|switch\s*\(.*kind.*\)', code, re.IGNORECASE):
             indicators.append("Switch on type/kind")
 
-        confidence = len(indicators) / 3.0
+        pattern_match = self._create_pattern_match(
+            DesignPattern.FACTORY,
+            indicators,
+            CSHARP_CONSTANTS.FACTORY_INDICATORS,
+            CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM,
+            type_name
+        )
 
-        if confidence >= 0.5:
-            matches.append(PatternMatch(
-                pattern=DesignPattern.FACTORY,
-                confidence=confidence,
-                indicators=indicators,
-                description=f"Factory pattern detected in {type_name}"
-            ))
-
-        return matches
+        return [pattern_match] if pattern_match else []
 
     def _detect_builder(self, code: str, type_name: str) -> List[PatternMatch]:
         """Detect Builder pattern."""
-        matches = []
         indicators = []
 
         # Check for With* methods
@@ -186,17 +217,15 @@ class CSharpPatternDetector:
         if re.search(r'return\s+this;', code):
             indicators.append("Returns this for chaining")
 
-        confidence = len(indicators) / 3.0
+        pattern_match = self._create_pattern_match(
+            DesignPattern.BUILDER,
+            indicators,
+            CSHARP_CONSTANTS.BUILDER_INDICATORS,
+            CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH,
+            type_name
+        )
 
-        if confidence >= 0.6:
-            matches.append(PatternMatch(
-                pattern=DesignPattern.BUILDER,
-                confidence=confidence,
-                indicators=indicators,
-                description=f"Builder pattern detected in {type_name}"
-            ))
-
-        return matches
+        return [pattern_match] if pattern_match else []
 
     # Structural Patterns
 
@@ -219,7 +248,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.DECORATOR,
                 confidence=confidence,
@@ -248,7 +277,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.4:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
                 pattern=DesignPattern.ADAPTER,
                 confidence=confidence,
@@ -275,7 +304,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 2.0
 
-        if confidence >= 0.6:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH:
             matches.append(PatternMatch(
                 pattern=DesignPattern.FACADE,
                 confidence=confidence,
@@ -300,7 +329,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 2.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.PROXY,
                 confidence=confidence,
@@ -331,7 +360,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.OBSERVER,
                 confidence=confidence,
@@ -360,7 +389,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.STRATEGY,
                 confidence=confidence,
@@ -389,7 +418,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.COMMAND,
                 confidence=confidence,
@@ -418,7 +447,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.CHAIN_OF_RESPONSIBILITY,
                 confidence=confidence,
@@ -447,7 +476,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.STATE,
                 confidence=confidence,
@@ -476,9 +505,9 @@ class CSharpPatternDetector:
         if 'Repository' in type_name or 'DAO' in type_name:
             indicators.append("Repository/DAO in name")
 
-        confidence = len(indicators) / 3.0
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.SINGLETON_INDICATORS)
 
-        if confidence >= 0.6:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH:
             matches.append(PatternMatch(
                 pattern=DesignPattern.REPOSITORY,
                 confidence=confidence,
@@ -507,7 +536,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.UNIT_OF_WORK,
                 confidence=confidence,
@@ -536,7 +565,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.4:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
                 pattern=DesignPattern.CQRS,
                 confidence=confidence,
@@ -565,7 +594,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.5:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_MEDIUM:
             matches.append(PatternMatch(
                 pattern=DesignPattern.EVENT_SOURCING,
                 confidence=confidence,
@@ -594,7 +623,7 @@ class CSharpPatternDetector:
 
         confidence = len(indicators) / 3.0
 
-        if confidence >= 0.4:
+        if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_LOW:
             matches.append(PatternMatch(
                 pattern=DesignPattern.PUBSUB,
                 confidence=confidence,
