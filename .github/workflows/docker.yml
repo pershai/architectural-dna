@@ -77,16 +77,37 @@ jobs:
         run: docker compose build
 
       - name: Start services (Qdrant only)
-        run: docker compose up -d qdrant
+        run: |
+          docker compose up -d qdrant
+          echo "Qdrant container started, checking initial status..."
+          docker compose ps qdrant
+          echo "Showing Qdrant container logs..."
+          docker compose logs qdrant
 
       - name: Wait for Qdrant to be ready
         run: |
           echo "Waiting for Qdrant to be healthy..."
           for i in {1..60}; do
-            if docker compose ps -q qdrant | xargs docker inspect --format='{{.State.Health.Status}}' | grep -q "healthy"; then
+            # Check if container is running
+            if ! docker compose ps -q qdrant > /dev/null 2>&1; then
+              echo "Qdrant container is not running!"
+              docker compose logs qdrant
+              exit 1
+            fi
+            
+            # Check health status
+            health_status=$(docker compose ps -q qdrant | xargs docker inspect --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
+            echo "Health status: $health_status"
+            
+            if [ "$health_status" = "healthy" ]; then
               echo "Qdrant is healthy and ready!"
               exit 0
+            elif [ "$health_status" = "unhealthy" ]; then
+              echo "Qdrant is unhealthy, showing logs..."
+              docker compose logs qdrant
+              exit 1
             fi
+            
             echo "Waiting for Qdrant health check... ($i/60)"
             sleep 2
           done
