@@ -73,18 +73,25 @@ jobs:
           echo "GITHUB_TOKEN=test_token" > .env
           echo "GEMINI_API_KEY=test_key" >> .env
 
-      - name: Build with docker-compose
-        run: docker-compose build
+      - name: Build with docker compose
+        run: docker compose build
 
       - name: Start services (Qdrant only)
-        run: |
-          docker-compose up -d qdrant
-          sleep 10  # Wait for Qdrant to be ready
+        run: docker compose up -d qdrant
 
-      - name: Verify Qdrant is running
+      - name: Wait for Qdrant to be ready
         run: |
-          curl -f http://localhost:6333/collections || exit 1
+          for i in {1..30}; do
+            if curl -sf http://localhost:6333/collections > /dev/null 2>&1; then
+              echo "Qdrant is ready!"
+              exit 0
+            fi
+            echo "Qdrant not ready yet, waiting... ($i/30)"
+            sleep 2
+          done
+          echo "Qdrant failed to start"
+          exit 1
 
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
