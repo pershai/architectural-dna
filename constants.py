@@ -58,6 +58,24 @@ DEFAULT_LLM_MODEL = "gemini-2.0-flash"
 DEFAULT_PATTERN_LIMIT = 5
 
 # =============================================================================
+# GitHub API Caching
+# =============================================================================
+
+# Default TTL (time-to-live) for cached responses in seconds
+DEFAULT_CACHE_TTL = 300  # 5 minutes
+
+# TTL for different types of cached data
+CACHE_TTL_REPO_LIST = 300  # 5 minutes - repository list changes infrequently
+CACHE_TTL_FILE_TREE = 600  # 10 minutes - file structure is relatively stable
+CACHE_TTL_FILE_CONTENT = 3600  # 1 hour - file content by SHA is immutable
+
+# Maximum number of entries in the cache
+DEFAULT_CACHE_MAX_SIZE = 1000
+
+# Cache directory for persistent caching
+DEFAULT_CACHE_DIR = ".github_cache"
+
+# =============================================================================
 # Server Configuration
 # =============================================================================
 # Note: Server host/port are configured via environment variables:

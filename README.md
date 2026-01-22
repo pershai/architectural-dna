@@ -94,6 +94,39 @@ get_embedding_info()
 # Returns current model, vector size, and configuration
 ```
 
+### GitHub API Caching
+
+The system includes an intelligent caching layer for GitHub API responses to reduce API calls and improve performance:
+
+**Cache Types and TTLs:**
+- **Repository List** (5 min): Cached since repo lists change infrequently
+- **File Tree** (10 min): Directory structure is relatively stable
+- **File Content** (1 hour): Content by SHA is immutable, safe to cache longer
+
+**Features:**
+- **LRU Eviction**: Automatically removes least-recently-used entries when cache is full
+- **Disk Persistence**: Optionally saves cache to disk for cross-session persistence
+- **Per-Request Control**: Each API method accepts `use_cache=False` to bypass cache
+- **Selective Invalidation**: Clear cache for specific repos or all at once
+
+Configure in [config.yaml](config.yaml):
+```yaml
+github:
+  cache:
+    enabled: true
+    ttl_repo_list: 300      # 5 minutes
+    ttl_file_tree: 600      # 10 minutes
+    ttl_file_content: 3600  # 1 hour
+    max_size: 1000          # Maximum cache entries
+    cache_dir: ".github_cache"  # null to disable disk caching
+```
+
+**Benefits:**
+- Faster re-syncs when re-processing repositories
+- Reduced GitHub API rate limit consumption
+- Improved performance for large codebases
+- Persistent cache survives container restarts (Docker volume)
+
 ## Installation
 
 Choose your deployment method:
@@ -502,9 +535,11 @@ architectural-dna/
 ├── dna_server.py          # MCP server with tool definitions
 ├── models.py              # Data models (Pattern, CodeChunk, etc.)
 ├── github_client.py       # GitHub API integration
+├── github_cache.py        # LRU cache with TTL for GitHub API
 ├── pattern_extractor.py   # AST-based code parsing
 ├── llm_analyzer.py        # Gemini pattern analysis
 ├── scaffolder.py          # Project generation
+├── constants.py           # Centralized configuration constants
 ├── discover_dna.py        # Local directory indexing
 ├── config.yaml            # Configuration
 ├── requirements.txt       # Python dependencies
@@ -537,8 +572,8 @@ def _extract_<language>_chunks(self, tree, content, lines):
 Contributions welcome! Areas for improvement:
 
 - [ ] Add more language support (C++, Rust, Ruby)
-- [ ] Implement caching for GitHub API responses
-- [ ] Add batch processing for large repositories
+- [x] ~~Implement caching for GitHub API responses~~ (Done - LRU cache with TTL)
+- [x] ~~Add batch processing for large repositories~~ (Done - BatchProcessor with progress tracking)
 - [ ] Create web UI for pattern browsing
 - [ ] Add export functionality (JSON, markdown)
 - [ ] Implement pattern versioning

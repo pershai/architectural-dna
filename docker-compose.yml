@@ -54,6 +54,8 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       # Persist downloaded embedding models
       - embeddings_cache:/app/.cache/fastembed
+      # Persist GitHub API cache
+      - github_cache:/app/.github_cache
       # Optional: Mount local codebase for discovery
       - ${LOCAL_CODE_PATH:-./data}:/data:ro
     networks:
@@ -81,6 +83,9 @@ volumes:
     driver: local
   embeddings_cache:
     name: architectural-dna-embeddings
+    driver: local
+  github_cache:
+    name: architectural-dna-github-cache
     driver: local
 
 networks:
