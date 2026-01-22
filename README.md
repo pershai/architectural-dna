@@ -1,5 +1,10 @@
 # Architectural DNA 🧬
 
+[![CI](https://github.com/pershai/architectural-dna/actions/workflows/ci.yml/badge.svg)](https://github.com/pershai/architectural-dna/actions/workflows/ci.yml)
+[![Docker](https://github.com/pershai/architectural-dna/actions/workflows/docker.yml/badge.svg)](https://github.com/pershai/architectural-dna/actions/workflows/docker.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+
 A powerful MCP (Model Context Protocol) server that extracts, analyzes, and stores code patterns from your GitHub repositories, enabling AI-powered project scaffolding based on your team's proven architectural patterns.
 
 ## What It Does
