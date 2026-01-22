@@ -55,7 +55,7 @@ jobs:
           pip install ruff
 
       - name: Run Ruff linter
-        run: ruff check . --ignore=venv
+        run: ruff check . --exclude venv
 
       - name: Run Ruff formatter check
         run: ruff format --check . --exclude venv
