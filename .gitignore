@@ -101,6 +101,7 @@ requirements.lock
 # Cache
 .cache/
 *.cache
+.github_cache/
 
 # Batch processing progress
 .batch_progress/
