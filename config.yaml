@@ -47,16 +47,28 @@ search:
 github:
   # Token loaded from environment variable for security
   token_env_var: "GITHUB_TOKEN"
-  
+
   # Repository filters
   include_private: true
   include_orgs: true
-  
+
   # Repos to always exclude (glob patterns)
   excluded_repos:
     - "dotfiles"
     - "archived-*"
     - "*.github.io"
+
+  # API Response Caching
+  cache:
+    enabled: true
+    # TTL (time-to-live) in seconds for different cache types
+    ttl_repo_list: 300      # 5 minutes for repository listings
+    ttl_file_tree: 600      # 10 minutes for file tree structure
+    ttl_file_content: 3600  # 1 hour for file content (by SHA, effectively immutable)
+    # Maximum cache entries (LRU eviction when exceeded)
+    max_size: 1000
+    # Persistent cache directory (set to null to disable disk caching)
+    cache_dir: ".github_cache"
 
 # LLM Configuration
 llm:

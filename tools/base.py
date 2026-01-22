@@ -40,9 +40,9 @@ class BaseTool:
         self._scaffolder: Optional[ProjectScaffolder] = None
 
     def get_github_client(self) -> GitHubClient:
-        """Get or create GitHub client."""
+        """Get or create GitHub client with caching configured from config."""
         if self._github_client is None:
-            self._github_client = GitHubClient()
+            self._github_client = GitHubClient(config=self.config)
         return self._github_client
 
     def get_llm_analyzer(self) -> LLMAnalyzer:
