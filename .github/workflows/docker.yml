@@ -86,32 +86,26 @@ jobs:
 
       - name: Wait for Qdrant to be ready
         run: |
-          echo "Waiting for Qdrant to be healthy..."
-          for i in {1..60}; do
+          echo "Waiting for Qdrant API to be available..."
+          for i in {1..30}; do
             # Check if container is running
             if ! docker compose ps -q qdrant > /dev/null 2>&1; then
               echo "Qdrant container is not running!"
               docker compose logs qdrant
               exit 1
             fi
-            
-            # Check health status
-            health_status=$(docker compose ps -q qdrant | xargs docker inspect --format='{{.State.Health.Status}}' 2>/dev/null || echo "unknown")
-            echo "Health status: $health_status"
-            
-            if [ "$health_status" = "healthy" ]; then
-              echo "Qdrant is healthy and ready!"
+
+            # Check if Qdrant API responds (using host curl)
+            if curl -sf http://localhost:6333/readyz > /dev/null 2>&1; then
+              echo "Qdrant API is ready!"
+              curl -s http://localhost:6333/ | head -1
               exit 0
-            elif [ "$health_status" = "unhealthy" ]; then
-              echo "Qdrant is unhealthy, showing logs..."
-              docker compose logs qdrant
-              exit 1
             fi
-            
-            echo "Waiting for Qdrant health check... ($i/60)"
+
+            echo "Waiting for Qdrant API... ($i/30)"
             sleep 2
           done
-          echo "Qdrant failed to become healthy within timeout"
+          echo "Qdrant failed to become ready within timeout"
           docker compose logs qdrant
           exit 1
 
