@@ -101,3 +101,6 @@ requirements.lock
 # Cache
 .cache/
 *.cache
+
+# Batch processing progress
+.batch_progress/
