@@ -5,23 +5,23 @@ GitHub API responses. It helps reduce API calls and improves performance
 when repeatedly accessing the same data.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Optional
+from typing import Any
 
 from constants import (
-    DEFAULT_CACHE_TTL,
-    CACHE_TTL_REPO_LIST,
-    CACHE_TTL_FILE_TREE,
     CACHE_TTL_FILE_CONTENT,
-    DEFAULT_CACHE_MAX_SIZE,
+    CACHE_TTL_FILE_TREE,
+    CACHE_TTL_REPO_LIST,
     DEFAULT_CACHE_DIR,
+    DEFAULT_CACHE_MAX_SIZE,
+    DEFAULT_CACHE_TTL,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """A single cache entry with value and expiration time."""
+
     value: Any
     expires_at: float
 
@@ -76,8 +77,8 @@ class GitHubCache:
         self,
         max_size: int = DEFAULT_CACHE_MAX_SIZE,
         default_ttl: float = DEFAULT_CACHE_TTL,
-        cache_dir: Optional[str] = None,
-        enabled: bool = True
+        cache_dir: str | None = None,
+        enabled: bool = True,
     ):
         """Initialize the cache.
 
@@ -102,7 +103,7 @@ class GitHubCache:
             self._load_persistent_cache()
 
     @classmethod
-    def from_config(cls, config: Optional[dict] = None) -> "GitHubCache":
+    def from_config(cls, config: dict | None = None) -> "GitHubCache":
         """Create a cache instance from configuration.
 
         Args:
@@ -120,10 +121,10 @@ class GitHubCache:
             max_size=cache_config.get("max_size", DEFAULT_CACHE_MAX_SIZE),
             default_ttl=cache_config.get("ttl_repo_list", DEFAULT_CACHE_TTL),
             cache_dir=cache_config.get("cache_dir", DEFAULT_CACHE_DIR),
-            enabled=cache_config.get("enabled", True)
+            enabled=cache_config.get("enabled", True),
         )
 
-    def get_ttl_for_type(self, cache_type: str, config: Optional[dict] = None) -> float:
+    def get_ttl_for_type(self, cache_type: str, config: dict | None = None) -> float:
         """Get the TTL for a specific cache type.
 
         Args:
@@ -138,10 +139,18 @@ class GitHubCache:
             cache_config = config.get("github", {}).get("cache", {})
 
         ttl_map = {
-            self.PREFIX_REPO_LIST: cache_config.get("ttl_repo_list", CACHE_TTL_REPO_LIST),
-            self.PREFIX_FILE_TREE: cache_config.get("ttl_file_tree", CACHE_TTL_FILE_TREE),
-            self.PREFIX_FILE_CONTENT: cache_config.get("ttl_file_content", CACHE_TTL_FILE_CONTENT),
-            self.PREFIX_REPOSITORY: cache_config.get("ttl_repo_list", CACHE_TTL_REPO_LIST),
+            self.PREFIX_REPO_LIST: cache_config.get(
+                "ttl_repo_list", CACHE_TTL_REPO_LIST
+            ),
+            self.PREFIX_FILE_TREE: cache_config.get(
+                "ttl_file_tree", CACHE_TTL_FILE_TREE
+            ),
+            self.PREFIX_FILE_CONTENT: cache_config.get(
+                "ttl_file_content", CACHE_TTL_FILE_CONTENT
+            ),
+            self.PREFIX_REPOSITORY: cache_config.get(
+                "ttl_repo_list", CACHE_TTL_REPO_LIST
+            ),
         }
 
         return ttl_map.get(cache_type, self.default_ttl)
@@ -159,7 +168,7 @@ class GitHubCache:
         parts = [prefix] + [str(arg) for arg in args]
         return ":".join(parts)
 
-    def _get_disk_path(self, key: str) -> Optional[Path]:
+    def _get_disk_path(self, key: str) -> Path | None:
         """Get the disk path for a cache key.
 
         Args:
@@ -175,7 +184,7 @@ class GitHubCache:
         key_hash = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{key_hash}.json"
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get a value from the cache.
 
         Args:
@@ -207,7 +216,7 @@ class GitHubCache:
 
             return None
 
-    def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
+    def set(self, key: str, value: Any, ttl: float | None = None) -> None:
         """Store a value in the cache.
 
         Args:
@@ -254,7 +263,7 @@ class GitHubCache:
             Number of entries removed
         """
         with self._lock:
-            keys_to_remove = [k for k in self._cache.keys() if k.startswith(prefix + ":")]
+            keys_to_remove = [k for k in self._cache if k.startswith(prefix + ":")]
             for key in keys_to_remove:
                 self._remove_entry(key)
             return len(keys_to_remove)
@@ -268,10 +277,8 @@ class GitHubCache:
             # Clear disk cache
             if self.cache_dir and self.cache_dir.exists():
                 for cache_file in self.cache_dir.glob("*.json"):
-                    try:
+                    with contextlib.suppress(OSError):
                         cache_file.unlink()
-                    except OSError:
-                        pass
 
     def stats(self) -> dict:
         """Get cache statistics.
@@ -310,10 +317,8 @@ class GitHubCache:
         # Remove from disk
         disk_path = self._get_disk_path(key)
         if disk_path and disk_path.exists():
-            try:
+            with contextlib.suppress(OSError):
                 disk_path.unlink()
-            except OSError:
-                pass
 
     def _save_to_disk(self, key: str, entry: CacheEntry) -> None:
         """Save a cache entry to disk."""
@@ -331,7 +336,7 @@ class GitHubCache:
         except (OSError, TypeError) as e:
             logger.debug(f"Failed to save cache entry to disk: {e}")
 
-    def _load_from_disk(self, key: str) -> Optional[Any]:
+    def _load_from_disk(self, key: str) -> Any | None:
         """Load a cache entry from disk."""
         disk_path = self._get_disk_path(key)
         if not disk_path or not disk_path.exists():
@@ -380,16 +385,15 @@ class GitHubCache:
                     loaded_count += 1
             except (OSError, json.JSONDecodeError, KeyError):
                 # Remove corrupted cache files
-                try:
+                with contextlib.suppress(OSError):
                     cache_file.unlink()
-                except OSError:
-                    pass
 
         if loaded_count > 0:
             logger.info(f"Loaded {loaded_count} cache entries from disk")
 
 
 # Convenience functions for common cache operations
+
 
 def make_repo_list_key(user: str, include_private: bool, include_orgs: bool) -> str:
     """Create cache key for repository list."""

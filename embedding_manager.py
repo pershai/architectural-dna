@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Optional, Any
+from typing import Any
 
 from qdrant_client import QdrantClient
 
@@ -93,15 +93,15 @@ class EmbeddingManager:
         # Normalize whitespace
         if self.preprocessing.get("normalize_whitespace", True):
             # Replace multiple spaces with single space
-            processed = re.sub(r' +', ' ', processed)
+            processed = re.sub(r" +", " ", processed)
             # Normalize line endings
-            processed = processed.replace('\r\n', '\n')
+            processed = processed.replace("\r\n", "\n")
 
         # Remove empty lines
         if self.preprocessing.get("remove_empty_lines", False):
-            lines = processed.split('\n')
+            lines = processed.split("\n")
             lines = [line for line in lines if line.strip()]
-            processed = '\n'.join(lines)
+            processed = "\n".join(lines)
 
         # Handle comments
         if not self.preprocessing.get("include_comments", True):
@@ -125,10 +125,10 @@ class EmbeddingManager:
             Code without comments
         """
         # Remove single-line comments (// and #)
-        code = re.sub(r'//.*?$', '', code, flags=re.MULTILINE)
-        code = re.sub(r'#.*?$', '', code, flags=re.MULTILINE)
+        code = re.sub(r"//.*?$", "", code, flags=re.MULTILINE)
+        code = re.sub(r"#.*?$", "", code, flags=re.MULTILINE)
         # Remove multi-line comments (/* */ and """ """)
-        code = re.sub(r'/\*.*?\*/', '', code, flags=re.DOTALL)
+        code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
         return code
 
     def _remove_docstrings(self, code: str) -> str:
@@ -142,8 +142,8 @@ class EmbeddingManager:
             Code without docstrings
         """
         # Remove triple-quoted strings (basic implementation)
-        code = re.sub(r'""".*?"""', '', code, flags=re.DOTALL)
-        code = re.sub(r"'''.*?'''", '', code, flags=re.DOTALL)
+        code = re.sub(r'""".*?"""', "", code, flags=re.DOTALL)
+        code = re.sub(r"'''.*?'''", "", code, flags=re.DOTALL)
         return code
 
     def should_chunk(self, code: str) -> bool:
@@ -190,10 +190,7 @@ class EmbeddingManager:
             return self._simple_chunk(code, max_size, overlap)
 
     def _simple_chunk(
-            self,
-            code: str,
-            max_size: int,
-            overlap: int
+        self, code: str, max_size: int, overlap: int
     ) -> list[tuple[str, dict]]:
         """
         Simple character-based chunking.
@@ -218,32 +215,30 @@ class EmbeddingManager:
             end = start + max_chars
             chunk = code[start:end]
 
-            chunks.append((
-                chunk,
-                {
-                    "chunk_index": chunk_idx,
-                    "total_chunks": -1,  # Will be updated
-                    "start_char": start,
-                    "end_char": end
-                }
-            ))
+            chunks.append(
+                (
+                    chunk,
+                    {
+                        "chunk_index": chunk_idx,
+                        "total_chunks": -1,  # Will be updated
+                        "start_char": start,
+                        "end_char": end,
+                    },
+                )
+            )
 
             start = end - overlap_chars
             chunk_idx += 1
 
         # Update total chunks
         total = len(chunks)
-        for chunk_text, metadata in chunks:
+        for _chunk_text, metadata in chunks:
             metadata["total_chunks"] = total
 
         return chunks
 
     def _smart_chunk(
-            self,
-            code: str,
-            max_size: int,
-            overlap: int,
-            file_path: str
+        self, code: str, max_size: int, overlap: int, file_path: str
     ) -> list[tuple[str, dict]]:
         """
         Smart chunking that respects code structure (functions, classes).
@@ -258,8 +253,8 @@ class EmbeddingManager:
             List of (chunk, metadata) tuples
         """
         # For now, fall back to line-based chunking that tries to keep functions together
-        lines = code.split('\n')
-        max_lines = max(10, max_size // 20)  # Rough estimate
+        lines = code.split("\n")
+        max(10, max_size // 20)  # Rough estimate
 
         chunks = []
         current_chunk = []
@@ -271,40 +266,44 @@ class EmbeddingManager:
 
             # If adding this line would exceed max, start new chunk
             if current_size + line_size > max_size and current_chunk:
-                chunk_text = '\n'.join(current_chunk)
-                chunks.append((
-                    chunk_text,
-                    {
-                        "chunk_index": chunk_idx,
-                        "total_chunks": -1,
-                        "lines": len(current_chunk)
-                    }
-                ))
+                chunk_text = "\n".join(current_chunk)
+                chunks.append(
+                    (
+                        chunk_text,
+                        {
+                            "chunk_index": chunk_idx,
+                            "total_chunks": -1,
+                            "lines": len(current_chunk),
+                        },
+                    )
+                )
                 chunk_idx += 1
 
                 # Keep overlap lines
                 overlap_lines = max(1, overlap // 20)
                 current_chunk = current_chunk[-overlap_lines:]
-                current_size = sum(len(l) / 4 for l in current_chunk)
+                current_size = sum(len(line_text) / 4 for line_text in current_chunk)
 
             current_chunk.append(line)
             current_size += line_size
 
         # Add final chunk
         if current_chunk:
-            chunk_text = '\n'.join(current_chunk)
-            chunks.append((
-                chunk_text,
-                {
-                    "chunk_index": chunk_idx,
-                    "total_chunks": -1,
-                    "lines": len(current_chunk)
-                }
-            ))
+            chunk_text = "\n".join(current_chunk)
+            chunks.append(
+                (
+                    chunk_text,
+                    {
+                        "chunk_index": chunk_idx,
+                        "total_chunks": -1,
+                        "lines": len(current_chunk),
+                    },
+                )
+            )
 
         # Update total chunks
         total = len(chunks)
-        for chunk_text, metadata in chunks:
+        for _, metadata in chunks:
             metadata["total_chunks"] = total
 
         logger.info(f"Split code into {total} chunks (smart strategy)")
@@ -322,5 +321,5 @@ class EmbeddingManager:
             "model": self.model,
             "vector_size": self.get_vector_size(),
             "chunking_enabled": self.chunking.get("enabled", True),
-            "preprocessing": self.preprocessing
+            "preprocessing": self.preprocessing,
         }

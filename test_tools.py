@@ -1,7 +1,8 @@
 """Tests for tool classes."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from tools import PatternTool, RepositoryTool, ScaffoldTool, StatsTool
 
@@ -20,16 +21,9 @@ def mock_qdrant_client():
 def test_config():
     """Create test configuration."""
     return {
-        "llm": {
-            "provider": "mock",
-            "min_quality_score": 5
-        },
-        "github": {
-            "excluded_repos": []
-        },
-        "scaffolding": {
-            "output_dir": "./test_projects"
-        }
+        "llm": {"provider": "mock", "min_quality_score": 5},
+        "github": {"excluded_repos": []},
+        "scaffolding": {"output_dir": "./test_projects"},
     }
 
 
@@ -53,7 +47,7 @@ class TestPatternTool:
             description="A test pattern",
             category="utilities",
             language="python",
-            quality_score=8
+            quality_score=8,
         )
 
         assert "[OK]" in result
@@ -69,7 +63,7 @@ class TestPatternTool:
             title="Test",
             description="Description",
             category="utilities",
-            language="python"
+            language="python",
         )
 
         assert "[ERROR]" in result
@@ -90,7 +84,7 @@ class TestPatternTool:
             "title": "Test Pattern",
             "language": "python",
             "category": "utilities",
-            "quality_score": 8
+            "quality_score": 8,
         }
         mock_result.document = "def test(): pass"
         mock_result.score = 0.95
@@ -112,12 +106,9 @@ class TestRepositoryTool:
         tool = RepositoryTool(mock_qdrant_client, "test_collection", test_config)
         assert tool.client == mock_qdrant_client
 
-    @patch('tools.repository_tool.RepositoryTool.get_github_client')
+    @patch("tools.repository_tool.RepositoryTool.get_github_client")
     def test_list_my_repos_success(
-            self,
-            mock_get_client,
-            mock_qdrant_client,
-            test_config
+        self, mock_get_client, mock_qdrant_client, test_config
     ):
         """Test listing repositories."""
         mock_repo = Mock()
@@ -178,7 +169,7 @@ class TestStatsTool:
         mock_point.payload = {
             "language": "python",
             "category": "utilities",
-            "source_repo": "user/repo"
+            "source_repo": "user/repo",
         }
         # First call returns data, second call returns empty (end of scroll)
         mock_qdrant_client.scroll.side_effect = [
@@ -201,7 +192,7 @@ class TestBaseTool:
         assert tool._github_client is None
 
         # First call creates it
-        with patch('tools.base.GitHubClient') as mock_gh:
+        with patch("tools.base.GitHubClient") as mock_gh:
             client1 = tool.get_github_client()
             assert mock_gh.called
 
@@ -216,6 +207,6 @@ class TestBaseTool:
         tool = PatternTool(mock_qdrant_client, "test_collection", test_config)
         assert tool._llm_analyzer is None
 
-        with patch('tools.base.MockLLMAnalyzer') as mock_llm:
-            analyzer = tool.get_llm_analyzer()
+        with patch("tools.base.MockLLMAnalyzer") as mock_llm:
+            tool.get_llm_analyzer()
             assert mock_llm.called

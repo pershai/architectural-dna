@@ -3,6 +3,7 @@
 from collections import Counter
 
 from constants import STATS_SCROLL_BATCH_SIZE
+
 from .base import BaseTool
 
 
@@ -54,7 +55,7 @@ class StatsTool(BaseTool):
                         with_payload=PayloadSelectorInclude(
                             include=["language", "category", "source_repo"]
                         ),
-                        with_vectors=False
+                        with_vectors=False,
                     )
 
                     if not results:
@@ -62,12 +63,12 @@ class StatsTool(BaseTool):
 
                     for point in results:
                         payload = point.payload or {}
-                        if 'language' in payload:
-                            languages[payload['language']] += 1
-                        if 'category' in payload:
-                            categories[payload['category']] += 1
-                        if 'source_repo' in payload:
-                            repos[payload['source_repo']] += 1
+                        if "language" in payload:
+                            languages[payload["language"]] += 1
+                        if "category" in payload:
+                            categories[payload["category"]] += 1
+                        if "source_repo" in payload:
+                            repos[payload["source_repo"]] += 1
 
                     if offset is None:
                         break

@@ -1,7 +1,6 @@
 """Project scaffolding tool for generating new projects from DNA patterns."""
 
 from pathlib import Path
-from typing import Optional
 
 from .base import BaseTool
 
@@ -10,11 +9,11 @@ class ScaffoldTool(BaseTool):
     """Tool for scaffolding new projects using DNA bank patterns."""
 
     def scaffold_project(
-            self,
-            project_name: str,
-            project_type: str,
-            tech_stack: str,
-            output_dir: Optional[str] = None
+        self,
+        project_name: str,
+        project_type: str,
+        tech_stack: str,
+        output_dir: str | None = None,
     ) -> str:
         """
         Scaffold a new project using best practices from the DNA bank.
@@ -43,8 +42,7 @@ class ScaffoldTool(BaseTool):
             else:
                 out_path = Path(
                     self.config.get("scaffolding", {}).get(
-                        "output_dir",
-                        "./generated_projects"
+                        "output_dir", "./generated_projects"
                     )
                 )
 
@@ -62,7 +60,7 @@ class ScaffoldTool(BaseTool):
                 project_name=project_name,
                 project_type=project_type,
                 tech_stack=stack,
-                patterns=patterns
+                patterns=patterns,
             )
 
             if not structure:

@@ -1,6 +1,5 @@
 """Tests for utility functions."""
 
-import pytest
 from utils import parse_json_from_llm_response
 
 
@@ -33,7 +32,7 @@ class TestParseJsonFromLLMResponse:
 
     def test_parse_complex_json(self):
         """Test parsing complex nested JSON."""
-        response = '''```json
+        response = """```json
         {
             "is_pattern": true,
             "title": "Test Pattern",
@@ -41,7 +40,7 @@ class TestParseJsonFromLLMResponse:
             "quality_score": 8,
             "use_cases": ["case1", "case2"]
         }
-        ```'''
+        ```"""
         result = parse_json_from_llm_response(response)
         assert result["is_pattern"] is True
         assert result["title"] == "Test Pattern"
@@ -57,24 +56,24 @@ class TestParseJsonFromLLMResponse:
 
     def test_parse_empty_string_returns_none(self):
         """Test that empty string returns None."""
-        response = ''
+        response = ""
         result = parse_json_from_llm_response(response)
         assert result is None
 
     def test_parse_non_json_returns_none(self):
         """Test that non-JSON text returns None."""
-        response = 'This is not JSON at all'
+        response = "This is not JSON at all"
         result = parse_json_from_llm_response(response)
         assert result is None
 
     def test_parse_json_with_whitespace(self):
         """Test parsing JSON with extra whitespace."""
-        response = '''
+        response = """
 
         ```json
         {"key": "value"}
         ```
 
-        '''
+        """
         result = parse_json_from_llm_response(response)
         assert result == {"key": "value"}
