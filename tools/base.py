@@ -6,8 +6,8 @@ from typing import Any, Optional
 from qdrant_client import QdrantClient
 
 from github_client import GitHubClient
-from pattern_extractor import PatternExtractor
 from llm_analyzer import LLMAnalyzer, MockLLMAnalyzer
+from pattern_extractor import PatternExtractor
 from scaffolder import ProjectScaffolder
 
 
@@ -40,9 +40,9 @@ class BaseTool:
         self._scaffolder: Optional[ProjectScaffolder] = None
 
     def get_github_client(self) -> GitHubClient:
-        """Get or create GitHub client."""
+        """Get or create GitHub client with caching configured from config."""
         if self._github_client is None:
-            self._github_client = GitHubClient()
+            self._github_client = GitHubClient(config=self.config)
         return self._github_client
 
     def get_llm_analyzer(self) -> LLMAnalyzer:
@@ -64,5 +64,7 @@ class BaseTool:
     def get_scaffolder(self) -> ProjectScaffolder:
         """Get or create project scaffolder."""
         if self._scaffolder is None:
-            self._scaffolder = ProjectScaffolder(self.client, self.collection_name)
+            self._scaffolder = ProjectScaffolder(
+                self.client, self.collection_name, self.config
+            )
         return self._scaffolder

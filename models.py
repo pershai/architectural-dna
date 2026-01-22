@@ -1,10 +1,34 @@
 """Data models for Architectural DNA."""
 
+import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def generate_pattern_id(repo_name: str, file_path: str, content: str) -> str:
+    """
+    Generate a deterministic ID for a pattern.
+
+    The ID is based on repo + file path + content hash, ensuring:
+    - Same code in same location = same ID (enables upsert/deduplication)
+    - Code changes = new ID (new version gets stored)
+    - Same code in different repos = different IDs (allows cross-repo patterns)
+
+    Args:
+        repo_name: Repository name (e.g., "owner/repo")
+        file_path: Path to the file within the repo
+        content: The actual code content
+
+    Returns:
+        A 32-character hex string ID
+    """
+    # Include content hash to handle file changes
+    content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+    unique_str = f"{repo_name}:{file_path}:{content_hash}"
+    return hashlib.md5(unique_str.encode()).hexdigest()
 
 
 class PatternCategory(str, Enum):
@@ -96,6 +120,10 @@ class Pattern:
             "source_path": self.source_path,
             "use_cases": self.use_cases,
         }
+
+    def generate_id(self) -> str:
+        """Generate deterministic ID for this pattern."""
+        return generate_pattern_id(self.source_repo, self.source_path, self.content)
 
 
 @dataclass

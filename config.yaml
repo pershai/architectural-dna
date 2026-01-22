@@ -47,24 +47,36 @@ search:
 github:
   # Token loaded from environment variable for security
   token_env_var: "GITHUB_TOKEN"
-  
+
   # Repository filters
   include_private: true
   include_orgs: true
-  
+
   # Repos to always exclude (glob patterns)
   excluded_repos:
     - "dotfiles"
     - "archived-*"
     - "*.github.io"
 
+  # API Response Caching
+  cache:
+    enabled: true
+    # TTL (time-to-live) in seconds for different cache types
+    ttl_repo_list: 300      # 5 minutes for repository listings
+    ttl_file_tree: 600      # 10 minutes for file tree structure
+    ttl_file_content: 3600  # 1 hour for file content (by SHA, effectively immutable)
+    # Maximum cache entries (LRU eviction when exceeded)
+    max_size: 1000
+    # Persistent cache directory (set to null to disable disk caching)
+    cache_dir: ".github_cache"
+
 # LLM Configuration
 llm:
   # Provider: gemini, openai, or mock (for testing)
-  provider: "mock"
+  provider: "gemini"
   
   # Model to use
-  model: "mock-model"
+  model: "gemini-2.0-flash"
   
   # Minimum quality score for patterns (1-10)
   min_quality_score: 3
@@ -118,6 +130,36 @@ csharp_audit:
 scaffolding:
   # Default output directory for new projects
   output_dir: "./generated_projects"
+
+# Batch Processing Configuration
+batch:
+  # Files to process per batch (lower = less memory, more API calls)
+  batch_size: 10
+
+  # Rate limiting between batches (seconds)
+  delay_between_batches: 0.5
+
+  # Retry settings for transient failures
+  max_retries: 3
+  retry_delay: 1.0
+
+  # Progress persistence for resumable syncs
+  save_progress: true
+  progress_dir: ".batch_progress"
+
+  # Progress tracking intervals
+  progress_save_interval: 10    # Save progress every N files
+  progress_notify_interval: 50  # Notify callback every N patterns
+
+# Repository Processing
+repository:
+  # Threshold for automatic batch processing (files)
+  large_repo_threshold: 50
+
+# Statistics Configuration
+stats:
+  # Batch size for scrolling through collection
+  scroll_batch_size: 500
 
 # Python Configuration
 python:

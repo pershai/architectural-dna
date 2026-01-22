@@ -8,6 +8,7 @@ from typing import Optional
 from qdrant_client import QdrantClient
 from google import genai
 
+from constants import DEFAULT_LLM_MODEL, DEFAULT_PATTERN_LIMIT, PATTERN_PREVIEW_LENGTH
 from models import ProjectStructure
 from utils import parse_json_from_llm_response
 
@@ -51,35 +52,39 @@ Generate production-ready scaffolding with proper structure. Include at least:
 - README.md'''
 
     def __init__(
-        self, 
-        qdrant_client: QdrantClient, 
+        self,
+        qdrant_client: QdrantClient,
         collection_name: str,
+        config: Optional[dict] = None,
         gemini_api_key: Optional[str] = None
     ):
         """
         Initialize the scaffolder.
-        
+
         Args:
             qdrant_client: Qdrant client for pattern retrieval
             collection_name: Name of the Qdrant collection
+            config: Configuration dictionary (for reading LLM model from config.yaml)
             gemini_api_key: Gemini API key (uses env var if not provided)
         """
         self.qdrant = qdrant_client
         self.collection_name = collection_name
-        
+        self.config = config or {}
+
         api_key = gemini_api_key or os.getenv("GEMINI_API_KEY")
         if api_key:
             self.client = genai.Client(api_key=api_key)
-            self.model = "gemini-2.0-flash"
+            # Read model from config, fallback to constant
+            self.model = self.config.get("llm", {}).get("model", DEFAULT_LLM_MODEL)
         else:
             self.client = None
             self.model = None
     
     def gather_patterns(
-        self, 
-        project_type: str, 
+        self,
+        project_type: str,
         tech_stack: list[str],
-        limit: int = 5
+        limit: int = DEFAULT_PATTERN_LIMIT
     ) -> list[dict]:
         """
         Retrieve relevant patterns for the project.
@@ -170,7 +175,7 @@ Generate production-ready scaffolding with proper structure. Include at least:
             title = metadata.get('title', metadata.get('description', f'Pattern {i}'))
             language = metadata.get('language', 'unknown')
             
-            formatted.append(f"### Pattern {i}: {title} ({language})\n```\n{document[:500]}...\n```\n")
+            formatted.append(f"### Pattern {i}: {title} ({language})\n```\n{document[:PATTERN_PREVIEW_LENGTH]}...\n```\n")
         
         return "\n".join(formatted)
     
