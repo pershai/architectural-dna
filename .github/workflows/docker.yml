@@ -82,14 +82,17 @@ jobs:
       - name: Wait for Qdrant to be ready
         run: |
           echo "Waiting for Qdrant to be healthy..."
-          timeout 120s docker compose wait qdrant
-          if [ $? -eq 0 ]; then
-            echo "Qdrant is healthy and ready!"
-          else
-            echo "Qdrant failed to become healthy within timeout"
-            docker compose logs qdrant
-            exit 1
-          fi
+          for i in {1..60}; do
+            if docker compose ps -q qdrant | xargs docker inspect --format='{{.State.Health.Status}}' | grep -q "healthy"; then
+              echo "Qdrant is healthy and ready!"
+              exit 0
+            fi
+            echo "Waiting for Qdrant health check... ($i/60)"
+            sleep 2
+          done
+          echo "Qdrant failed to become healthy within timeout"
+          docker compose logs qdrant
+          exit 1
 
       - name: Cleanup
         if: always()
