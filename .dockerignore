@@ -52,9 +52,9 @@ docker-compose*.yml
 test_*.py
 *_test.py
 TEST_RESULTS.md
-IMPROVEMENTS.md
-REFACTORING.md
-EMBEDDING_IMPROVEMENTS.md
+docs/plans/IMPROVEMENTS.md
+docs/plans/REFACTORING.md
+docs/plans/EMBEDDING_IMPROVEMENTS.md
 
 # Scripts
 manual_*.py

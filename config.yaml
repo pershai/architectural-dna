@@ -74,12 +74,17 @@ github:
 llm:
   # Provider: gemini, openai, or mock (for testing)
   provider: "gemini"
-  
+
   # Model to use
   model: "gemini-2.0-flash"
-  
+
   # Minimum quality score for patterns (1-10)
   min_quality_score: 3
+
+  # Retry settings for rate limiting
+  max_retries: 5
+  initial_retry_delay: 1.0   # seconds
+  max_retry_delay: 60.0      # seconds (cap for exponential backoff)
 
 # Discovery Configuration
 discovery:

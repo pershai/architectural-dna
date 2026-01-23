@@ -45,11 +45,17 @@ class BaseTool:
     def get_llm_analyzer(self) -> LLMAnalyzer:
         """Get or create LLM analyzer."""
         if self._llm_analyzer is None:
-            provider = self.config.get("llm", {}).get("provider", "gemini")
+            llm_config = self.config.get("llm", {})
+            provider = llm_config.get("provider", "gemini")
             if provider == "mock":
                 self._llm_analyzer = MockLLMAnalyzer()
             else:
-                self._llm_analyzer = LLMAnalyzer()
+                self._llm_analyzer = LLMAnalyzer(
+                    model=llm_config.get("model"),
+                    max_retries=llm_config.get("max_retries"),
+                    initial_retry_delay=llm_config.get("initial_retry_delay"),
+                    max_retry_delay=llm_config.get("max_retry_delay"),
+                )
         return self._llm_analyzer
 
     def get_pattern_extractor(self) -> PatternExtractor:
