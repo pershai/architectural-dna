@@ -149,7 +149,7 @@ docker-compose up -d
 
 The server runs at: **http://localhost:8080/sse**
 
-**Connect your AI assistant** - See [MCP_SETUP.md](docs/plans/MCP_SETUP.md) for:
+**Connect your AI assistant** - See [MCP_SETUP.md](MCP_SETUP.md) for:
 - 🟣 Cursor
 - 🔵 Gemini Code Assist / Antigravity
 - 🟢 Windsurf / Cascade
@@ -570,7 +570,7 @@ def _extract_<language>_chunks(self, tree, content, lines):
 
 ## Security
 
-⚠️ **IMPORTANT**: Never commit `.env` to version control. See [SECURITY.md](docs/plans/SECURITY.md) for details on secret management and rotation.
+⚠️ **IMPORTANT**: Never commit `.env` to version control. See [SECURITY.md](SECURITY.md) for details on secret management and rotation.
 
 ## Contributing
 
