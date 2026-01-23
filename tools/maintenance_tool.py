@@ -46,7 +46,11 @@ class MaintenanceTool(BaseTool):
 
         # Validate from_category
         valid_categories = [c.value for c in PatternCategory]
-        if from_category and from_category != "all" and from_category not in valid_categories:
+        if (
+            from_category
+            and from_category != "all"
+            and from_category not in valid_categories
+        ):
             return (
                 f"[ERROR] Invalid category '{from_category}'. "
                 f"Valid options: 'all', {', '.join(valid_categories)}"
@@ -58,7 +62,11 @@ class MaintenanceTool(BaseTool):
 
         if from_category and from_category != "all":
             scroll_filter = Filter(
-                must=[FieldCondition(key="category", match=MatchValue(value=from_category))]
+                must=[
+                    FieldCondition(
+                        key="category", match=MatchValue(value=from_category)
+                    )
+                ]
             )
             filter_desc = f"patterns with category '{from_category}'"
 
@@ -169,7 +177,9 @@ class MaintenanceTool(BaseTool):
 
                     # Track category changes
                     change_key = f"{old_category} -> {new_category}"
-                    category_changes[change_key] = category_changes.get(change_key, 0) + 1
+                    category_changes[change_key] = (
+                        category_changes.get(change_key, 0) + 1
+                    )
 
                     if dry_run:
                         self.logger.info(

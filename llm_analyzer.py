@@ -78,7 +78,9 @@ Be strict with quality_score:
         self.client = genai.Client(api_key=api_key)
         self.model = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.max_retries = max_retries if max_retries is not None else 5
-        self.initial_retry_delay = initial_retry_delay if initial_retry_delay is not None else 1.0
+        self.initial_retry_delay = (
+            initial_retry_delay if initial_retry_delay is not None else 1.0
+        )
         self.max_retry_delay = max_retry_delay if max_retry_delay is not None else 60.0
 
     def analyze_chunk(self, chunk: CodeChunk) -> PatternAnalysis | None:
