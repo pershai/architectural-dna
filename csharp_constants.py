@@ -53,5 +53,23 @@ class CSharpAnalysisConstants:
     PUBSUB_INDICATORS: int = 3
 
 
+# SQL libraries and data access frameworks to detect
+SQL_LIBRARIES = [
+    'SqlClient',          # Microsoft.Data.SqlClient, System.Data.SqlClient
+    'Dapper',             # Dapper micro-ORM
+    'NHibernate',         # NHibernate ORM
+    'EntityFramework',    # Legacy EF
+    'MySql.Data',         # MySQL Connector
+    'Npgsql',             # PostgreSQL driver
+    'Oracle.ManagedDataAccess',  # Oracle driver
+    'MongoDB.Driver',     # MongoDB driver
+    'System.Data.Odbc',   # ODBC data access
+    'System.Data.OleDb',  # OLE DB data access
+    'StackExchange.Redis', # Redis client
+    'Cassandra',          # Cassandra driver
+    'System.Data.SQLite', # SQLite
+]
+
+
 # Global instance for easy access
 CSHARP_CONSTANTS = CSharpAnalysisConstants()

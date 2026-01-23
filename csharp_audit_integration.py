@@ -95,9 +95,19 @@ class CSharpArchitecturalAuditor:
     def analyze_csharp_project(
         self,
         project_path: str,
-        include_patterns: List[str] = None
+        include_patterns: List[str] = None,
+        batch_size: int = 100
     ) -> Dict:
-        """Analyze an entire C# project or solution."""
+        """Analyze an entire C# project or solution.
+
+        Args:
+            project_path: Path to C# project root or .csproj file
+            include_patterns: Optional glob patterns to filter files
+            batch_size: Number of files to process per batch (prevents memory issues)
+
+        Returns:
+            Dictionary with analysis results and audit findings
+        """
         if not project_path:
             raise ValueError("project_path cannot be empty")
 
@@ -128,40 +138,71 @@ class CSharpArchitecturalAuditor:
 
         logger.info(f"Analyzing {len(cs_files)} C# files in {project_root}")
 
-        all_types = []
-        for cs_file in cs_files:
-            try:
-                for encoding in ['utf-8', 'utf-8-sig', 'windows-1252']:
-                    try:
-                        content = cs_file.read_text(encoding=encoding)
-                        break
-                    except UnicodeDecodeError:
+        # Process files in batches to prevent memory exhaustion on large projects
+        files_processed = 0
+        files_skipped = 0
+
+        for i in range(0, len(cs_files), batch_size):
+            batch = cs_files[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(cs_files) + batch_size - 1) // batch_size
+
+            logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} files)")
+
+            for cs_file in batch:
+                try:
+                    # Try multiple encodings
+                    content = None
+                    for encoding in ['utf-8', 'utf-8-sig', 'windows-1252']:
+                        try:
+                            content = cs_file.read_text(encoding=encoding)
+                            break
+                        except UnicodeDecodeError:
+                            continue
+
+                    if content is None:
+                        logger.warning(f"Skipping {cs_file}: unsupported encoding")
+                        files_skipped += 1
                         continue
-                else:
-                    logger.warning(f"Skipping {cs_file}: unsupported encoding")
-                    continue
 
-                if cs_file.name in ["Program.cs", "Startup.cs"]:
-                    self.semantic_analyzer.extract_di_registrations(
-                        content,
-                        str(cs_file)
-                    )
+                    # Extract DI registrations from entry point files
+                    if cs_file.name in ["Program.cs", "Startup.cs"]:
+                        self.semantic_analyzer.extract_di_registrations(
+                            content,
+                            str(cs_file)
+                        )
 
-                types = self.analyze_csharp_file(str(cs_file), content)
-                all_types.extend(types)
+                    # Analyze file and register types directly to prevent memory accumulation
+                    types = self.analyze_csharp_file(str(cs_file), content)
+                    for type_info in types:
+                        # Register in analyzer immediately instead of accumulating in list
+                        self.semantic_analyzer.types[type_info.name] = type_info
 
-            except Exception as e:
-                logger.error(f"Unexpected error analyzing {cs_file}: {e}", exc_info=True)
+                    files_processed += 1
 
+                except Exception as e:
+                    logger.error(f"Unexpected error analyzing {cs_file}: {e}", exc_info=True)
+                    files_skipped += 1
+
+        logger.info(
+            f"Analysis complete: {files_processed} files processed, "
+            f"{files_skipped} files skipped, "
+            f"{len(self.semantic_analyzer.types)} types analyzed"
+        )
+
+        # Link DI registrations and aggregate partial classes
         self.semantic_analyzer.link_di_registrations()
         self.semantic_analyzer.aggregate_partial_classes()
+
+        # Run architectural audit
         audit_result = self.audit_engine.run_all_audits()
 
         return {
             "project_path": str(project_root),
-            "files_analyzed": len(cs_files),
-            "types_analyzed": len(all_types),
-            "types": {t.name: t for t in all_types},
+            "files_analyzed": files_processed,
+            "files_skipped": files_skipped,
+            "types_analyzed": len(self.semantic_analyzer.types),
+            "types": self.semantic_analyzer.types,
             "audit_result": audit_result
         }
 

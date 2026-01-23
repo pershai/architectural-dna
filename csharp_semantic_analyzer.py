@@ -9,15 +9,19 @@ This module provides deep architectural analysis including:
 
 import re
 import yaml
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Tuple
 from pathlib import Path
 from collections import defaultdict
 from enum import Enum
+from pydantic import BaseModel, Field, field_validator
 
 from models import Language, PatternCategory
 from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
 from csharp_constants import CSHARP_CONSTANTS
+
+logger = logging.getLogger(__name__)
 
 
 class ArchitecturalRole(str, Enum):
@@ -108,6 +112,71 @@ class ArchitecturalViolation:
     suggestion: Optional[str] = None
 
 
+class MetricsConfig(BaseModel):
+    """Validated configuration for code metrics thresholds."""
+    lcom_threshold: float = Field(
+        default=0.8,
+        ge=0.0,
+        le=1.0,
+        description="LCOM threshold for God Object detection (0.0-1.0)"
+    )
+    loc_threshold: int = Field(
+        default=500,
+        gt=0,
+        le=10000,
+        description="Lines of code threshold for large classes"
+    )
+    cyclomatic_complexity_limit: int = Field(
+        default=15,
+        gt=0,
+        le=100,
+        description="Maximum cyclomatic complexity per method"
+    )
+
+
+class DependenciesConfig(BaseModel):
+    """Validated configuration for dependency limits."""
+    max_per_class: int = Field(
+        default=7,
+        gt=0,
+        le=50,
+        description="Maximum dependencies per class"
+    )
+    max_per_namespace: int = Field(
+        default=50,
+        gt=0,
+        le=500,
+        description="Maximum external dependencies per namespace"
+    )
+
+
+class PatternsConfig(BaseModel):
+    """Validated configuration for pattern detection."""
+    include_partial_classes: bool = Field(
+        default=True,
+        description="Aggregate partial class declarations"
+    )
+    extract_di_registrations: bool = Field(
+        default=True,
+        description="Extract DI registrations from Program.cs/Startup.cs"
+    )
+    detect_async_patterns: bool = Field(
+        default=True,
+        description="Detect async-over-sync anti-patterns"
+    )
+    detect_design_patterns: bool = Field(
+        default=True,
+        description="Detect design patterns (Singleton, Factory, etc.)"
+    )
+
+
+class CSharpAuditConfig(BaseModel):
+    """Validated configuration for C# architectural audit."""
+    metrics: MetricsConfig = Field(default_factory=MetricsConfig)
+    dependencies: DependenciesConfig = Field(default_factory=DependenciesConfig)
+    patterns: PatternsConfig = Field(default_factory=PatternsConfig)
+
+
 class CSharpSemanticAnalyzer:
     """Advanced semantic analyzer for C# architectural patterns."""
 
@@ -146,17 +215,36 @@ class CSharpSemanticAnalyzer:
         self.pattern_detector = CSharpPatternDetector()
 
     def _load_config(self, config_path: str) -> Dict:
-        """Load C# configuration from YAML file."""
+        """Load and validate C# configuration from YAML file.
+
+        Uses Pydantic for validation to ensure all values are within safe ranges.
+        Falls back to defaults if config is invalid or missing.
+
+        Args:
+            config_path: Path to YAML configuration file
+
+        Returns:
+            Validated configuration dictionary
+        """
         try:
             config_file = Path(config_path)
             if config_file.exists():
                 with open(config_file) as f:
-                    config = yaml.safe_load(f)
-                    return config.get("csharp_audit", {})
-        except Exception:
-            pass  # Return empty config on error
+                    raw_config = yaml.safe_load(f)
+                    csharp_config = raw_config.get("csharp_audit", {})
 
-        return {}
+                    # Validate configuration using Pydantic
+                    validated_config = CSharpAuditConfig(**csharp_config)
+                    return validated_config.model_dump()
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to load/validate config from {config_path}: {e}. "
+                f"Using default configuration."
+            )
+
+        # Return validated defaults if config loading fails
+        return CSharpAuditConfig().model_dump()
 
     def extract_attributes(self, content: str, start_line: int) -> List[CSharpAttribute]:
         """Extract C# attributes from code."""
@@ -257,10 +345,12 @@ class CSharpSemanticAnalyzer:
             if return_type and return_type[0].isupper() and return_type not in ['Task', 'void']:
                 dependencies.add(return_type)
 
+        # Detect SQL and data access library usage
         using_pattern = re.compile(r'using\s+([\w.]+);')
         for match in using_pattern.finditer(content):
             namespace = match.group(1)
-            if 'SqlClient' in namespace or 'Dapper' in namespace:
+            # Check against comprehensive list of SQL libraries
+            if any(sql_lib in namespace for sql_lib in CSHARP_CONSTANTS.SQL_LIBRARIES):
                 dependencies.add(f"__SQL__{namespace}")
 
         return dependencies
@@ -309,6 +399,14 @@ class CSharpSemanticAnalyzer:
 
     def calculate_lcom(self, members: List[CSharpMember], content: str) -> float:
         """Calculate Lack of Cohesion in Methods (LCOM4)."""
+        # Validate inputs to prevent runtime errors
+        if not content or not content.strip():
+            logger.warning("Empty content provided to calculate_lcom")
+            return 0.0
+
+        if not members:
+            return 0.0
+
         methods = [m for m in members if m.member_type == "method" and not m.is_static]
         fields = [m for m in members if m.member_type in ("field", "property") and not m.is_static]
 
@@ -364,17 +462,25 @@ class CSharpSemanticAnalyzer:
     def _calculate_cyclomatic_complexity(self, content: str) -> int:
         """
         Calculate cyclomatic complexity by counting decision points.
-        Uses regex with word boundaries to avoid matching in comments/strings.
+        Uses iterative approach to safely remove comments and strings.
         """
         # Remove single-line comments
         content_no_comments = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
 
-        # Remove multi-line comments
-        content_no_comments = re.sub(r'/\*.*?\*/', '', content_no_comments, flags=re.DOTALL)
+        # Remove multi-line comments iteratively to avoid greedy matching issues
+        # This prevents accidentally removing code between separate comment blocks
+        max_iterations = 100  # Safety limit to prevent infinite loops
+        iteration = 0
+        while iteration < max_iterations:
+            new_content = re.sub(r'/\*.*?\*/', '', content_no_comments, count=1, flags=re.DOTALL)
+            if new_content == content_no_comments:
+                break  # No more comments found
+            content_no_comments = new_content
+            iteration += 1
 
-        # Remove string literals to avoid false matches
-        content_cleaned = re.sub(r'"(?:[^"\\]|\\.)*"', '', content_no_comments)
-        content_cleaned = re.sub(r"'(?:[^'\\]|\\.)*'", '', content_cleaned)
+        # Remove string literals (including verbatim strings @"...") to avoid false matches
+        content_cleaned = re.sub(r'@?"(?:[^"\\]|\\.)*"', '', content_no_comments)
+        content_cleaned = re.sub(r"@?'(?:[^'\\]|\\.)*'", '', content_cleaned)
 
         # Count decision points with word boundaries
         decision_patterns = [

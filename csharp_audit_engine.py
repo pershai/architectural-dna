@@ -255,7 +255,10 @@ class CSharpAuditEngine:
         return violations
 
     def detect_cyclic_dependencies(self) -> List[ArchitecturalViolation]:
-        """Detect cyclic dependencies between namespaces."""
+        """Detect cyclic dependencies between namespaces.
+
+        Thread-safe implementation that returns cycle instead of mutating shared state.
+        """
         violations = []
         rule = self.rules["ARCH_001"]
 
@@ -266,36 +269,39 @@ class CSharpAuditEngine:
                 if dep_type and dep_type.namespace != type_info.namespace:
                     namespace_deps[type_info.namespace].add(dep_type.namespace)
 
-        def find_cycle(node, visited, rec_stack, path):
+        def find_cycle(node, visited, rec_stack, path) -> Optional[List[str]]:
+            """Find cycle starting from node. Returns cycle path or None."""
             visited.add(node)
             rec_stack.add(node)
             path.append(node)
 
             for neighbor in namespace_deps.get(node, []):
                 if neighbor not in visited:
-                    if find_cycle(neighbor, visited, rec_stack, path):
-                        return True
+                    cycle = find_cycle(neighbor, visited, rec_stack, path)
+                    if cycle:
+                        return cycle
                 elif neighbor in rec_stack:
+                    # Found cycle, return it
                     cycle_start = path.index(neighbor)
-                    cycle = path[cycle_start:] + [neighbor]
-                    violations.append(ArchitecturalViolation(
-                        rule_id=rule.rule_id,
-                        severity=rule.severity,
-                        message=f"Cyclic dependency detected: {' -> '.join(cycle)}",
-                        type_name=node,
-                        file_path="Multiple files",
-                        suggestion="Refactor to break the cycle using interfaces or moving shared code"
-                    ))
-                    return True
+                    return path[cycle_start:] + [neighbor]
 
             path.pop()
             rec_stack.remove(node)
-            return False
+            return None
 
         visited = set()
         for namespace in namespace_deps:
             if namespace not in visited:
-                find_cycle(namespace, visited, set(), [])
+                cycle = find_cycle(namespace, visited, set(), [])
+                if cycle:
+                    violations.append(ArchitecturalViolation(
+                        rule_id=rule.rule_id,
+                        severity=rule.severity,
+                        message=f"Cyclic dependency detected: {' -> '.join(cycle)}",
+                        type_name=cycle[0],
+                        file_path="Multiple files",
+                        suggestion="Refactor to break the cycle using interfaces or moving shared code"
+                    ))
 
         return violations
 
