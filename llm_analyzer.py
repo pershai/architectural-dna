@@ -2,8 +2,10 @@
 
 import logging
 import os
+import time
 
 from google import genai
+from google.genai import errors as genai_errors
 
 from models import CodeChunk, PatternAnalysis, PatternCategory
 from utils import parse_json_from_llm_response
@@ -47,13 +49,24 @@ Be strict with quality_score:
 - 7-8: Good, clean code with some documentation
 - 9-10: Excellent, production-ready with good docs and error handling"""
 
-    def __init__(self, api_key: str | None = None, model: str = "gemini-2.0-flash"):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        max_retries: int | None = None,
+        initial_retry_delay: float | None = None,
+        max_retry_delay: float | None = None,
+    ):
         """
         Initialize the LLM analyzer.
 
         Args:
             api_key: Gemini API key. If not provided, reads from GEMINI_API_KEY env var.
-            model: Gemini model to use (default: gemini-2.0-flash for speed/cost)
+            model: Gemini model to use. If not provided, reads from GEMINI_MODEL env var
+                   or defaults to gemini-2.0-flash.
+            max_retries: Maximum number of retries for rate-limited requests.
+            initial_retry_delay: Initial delay in seconds before first retry.
+            max_retry_delay: Maximum delay in seconds between retries.
         """
         api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -63,7 +76,12 @@ Be strict with quality_score:
             )
 
         self.client = genai.Client(api_key=api_key)
-        self.model = model
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.max_retries = max_retries if max_retries is not None else 5
+        self.initial_retry_delay = (
+            initial_retry_delay if initial_retry_delay is not None else 1.0
+        )
+        self.max_retry_delay = max_retry_delay if max_retry_delay is not None else 60.0
 
     def analyze_chunk(self, chunk: CodeChunk) -> PatternAnalysis | None:
         """
@@ -82,15 +100,54 @@ Be strict with quality_score:
             file_path=chunk.file_path,
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model, contents=prompt
-            )
-            result = self._parse_response(response.text)
-            return result
-        except Exception as e:
-            logger.error(f"Error analyzing chunk {chunk.name}: {e}")
-            return None
+        delay = self.initial_retry_delay
+        last_error = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model, contents=prompt
+                )
+                result = self._parse_response(response.text)
+                return result
+            except genai_errors.ClientError as e:
+                # Check for rate limit errors (429)
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    last_error = e
+                    if attempt < self.max_retries:
+                        logger.warning(
+                            "Rate limited (attempt %d/%d), waiting %.1fs before retry...",
+                            attempt + 1,
+                            self.max_retries + 1,
+                            delay,
+                        )
+                        time.sleep(delay)
+                        # Exponential backoff with cap
+                        delay = min(delay * 2, self.max_retry_delay)
+                        continue
+                    else:
+                        logger.error(
+                            "Rate limit exceeded after %d attempts for chunk %s: %s",
+                            self.max_retries + 1,
+                            chunk.name,
+                            e,
+                        )
+                        return None
+                else:
+                    # Non-rate-limit client error
+                    logger.error(
+                        "API client error analyzing chunk %s: %s", chunk.name, e
+                    )
+                    return None
+            except Exception as e:
+                logger.error("Error analyzing chunk %s: %s", chunk.name, e)
+                return None
+
+        # Should not reach here, but just in case
+        logger.error(
+            "Failed to analyze chunk %s after retries: %s", chunk.name, last_error
+        )
+        return None
 
     def analyze_chunks(
         self, chunks: list[CodeChunk], min_quality: int = 5

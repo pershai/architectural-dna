@@ -32,7 +32,7 @@ from fastmcp import FastMCP
 from qdrant_client import QdrantClient
 
 from embedding_manager import EmbeddingManager
-from tools import PatternTool, RepositoryTool, ScaffoldTool, StatsTool
+from tools import MaintenanceTool, PatternTool, RepositoryTool, ScaffoldTool, StatsTool
 from tools.batch_processor import BatchProcessor
 
 # Configure logging
@@ -91,6 +91,7 @@ batch_processor = BatchProcessor(client, COLLECTION_NAME, config)
 
 # Initialize repository tool with batch processor for large repos
 repository_tool = RepositoryTool(client, COLLECTION_NAME, config, batch_processor)
+maintenance_tool = MaintenanceTool(client, COLLECTION_NAME, config)
 
 
 # ==============================================================================
@@ -375,6 +376,54 @@ def clear_sync_progress(repo_name: str) -> str:
     return batch_processor.clear_sync_progress(repo_name)
 
 
+@mcp.tool()
+def recategorize_patterns(
+    from_category: str = "other",
+    batch_size: int = 10,
+    delay_between_batches: float = 1.0,
+    dry_run: bool = False,
+) -> str:
+    """
+    Re-categorize patterns using LLM analysis.
+
+    Use this to fix patterns that were stored without proper categorization
+    or to re-analyze patterns with a different/better LLM.
+
+    Args:
+        from_category: Which patterns to re-analyze:
+            - "other" (default): Only patterns with category 'other'
+            - "all": All patterns regardless of current category
+            - Any category name: Only patterns with that specific category
+            Valid categories: architecture, error_handling, configuration,
+            testing, api_design, data_access, security, logging, utilities, other
+        batch_size: Number of patterns to process per batch (default: 10)
+        delay_between_batches: Seconds between batches for rate limiting (default: 1.0)
+        dry_run: If True, only show what would be changed without updating
+
+    Returns:
+        Summary of recategorization results
+    """
+    return maintenance_tool.recategorize_patterns(
+        from_category=from_category,
+        batch_size=batch_size,
+        delay_between_batches=delay_between_batches,
+        dry_run=dry_run,
+    )
+
+
+@mcp.tool()
+def get_category_stats() -> str:
+    """
+    Get statistics about pattern categories in the DNA bank.
+
+    Shows distribution of patterns across categories with visual bars.
+
+    Returns:
+        Category distribution statistics
+    """
+    return maintenance_tool.get_category_stats()
+
+
 def apply_header_overrides(headers: dict) -> dict:
     """Apply environment overrides from request headers.
 
@@ -407,7 +456,6 @@ def apply_header_overrides(headers: dict) -> dict:
 if __name__ == "__main__":
     import sys
 
-    # Check for server mode
     transport = os.getenv("MCP_TRANSPORT", "stdio")
     host = os.getenv("MCP_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_PORT", "8080"))
@@ -418,11 +466,9 @@ if __name__ == "__main__":
     )
 
     if transport == "sse" or "--sse" in sys.argv:
-        # Run as HTTP/SSE server (for Docker/remote access)
         logger.info(f"Running in SSE mode on http://{host}:{port}")
         logger.info("Headers supported: X-GITHUB-TOKEN, X-GEMINI-API-KEY, X-QDRANT-URL")
 
-        # Add middleware to handle header-based auth
         from starlette.middleware.base import BaseHTTPMiddleware
         from starlette.requests import Request
 
@@ -435,9 +481,7 @@ if __name__ == "__main__":
                     logger.info(f"Applied header overrides: {list(overrides.keys())}")
                 return await call_next(request)
 
-        # Get the underlying Starlette app and add middleware
         mcp.run(transport="sse", host=host, port=port)
     else:
-        # Run in stdio mode (for local MCP clients)
         logger.info("Running in stdio mode")
         mcp.run()
