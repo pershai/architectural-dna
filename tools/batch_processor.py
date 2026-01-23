@@ -3,30 +3,32 @@
 import hashlib
 import json
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable, Iterator
 
 from constants import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_DELAY_BETWEEN_BATCHES,
     DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_DELAY,
-    DEFAULT_PROGRESS_DIR,
     DEFAULT_MIN_QUALITY,
-    PROGRESS_SAVE_INTERVAL,
-    PROGRESS_NOTIFY_INTERVAL,
-    PROGRESS_HASH_LENGTH,
+    DEFAULT_PROGRESS_DIR,
+    DEFAULT_RETRY_DELAY,
     FAILED_FILES_DISPLAY_LIMIT,
+    PROGRESS_HASH_LENGTH,
+    PROGRESS_NOTIFY_INTERVAL,
+    PROGRESS_SAVE_INTERVAL,
 )
-from models import Pattern, PatternCategory, CodeChunk
+from models import CodeChunk, Pattern, PatternCategory
+
 from .base import BaseTool
 
 
 @dataclass
 class BatchProgress:
     """Tracks progress of batch processing."""
+
     repo_name: str
     total_files: int = 0
     processed_files: int = 0
@@ -68,7 +70,7 @@ class BatchProgress:
             "elapsed_seconds": round(self.elapsed_seconds, 1),
             "estimated_remaining_seconds": round(self.estimated_remaining_seconds, 1),
             "started_at": self.started_at.isoformat(),
-            "last_updated": self.last_updated.isoformat()
+            "last_updated": self.last_updated.isoformat(),
         }
 
     @classmethod
@@ -90,6 +92,7 @@ class BatchProgress:
 @dataclass
 class BatchConfig:
     """Configuration for batch processing."""
+
     batch_size: int = DEFAULT_BATCH_SIZE
     delay_between_batches: float = DEFAULT_DELAY_BETWEEN_BATCHES
     max_retries: int = DEFAULT_MAX_RETRIES
@@ -113,11 +116,11 @@ class BatchProcessor(BaseTool):
     """
 
     def __init__(
-            self,
-            qdrant_client,
-            collection_name: str,
-            config: dict = None,
-            progress_callback: Callable[[BatchProgress], None] = None
+        self,
+        qdrant_client,
+        collection_name: str,
+        config: dict = None,
+        progress_callback: Callable[[BatchProgress], None] = None,
     ):
         super().__init__(qdrant_client, collection_name, config or {})
         self.progress_callback = progress_callback
@@ -134,23 +137,29 @@ class BatchProcessor(BaseTool):
 
         return BatchConfig(
             batch_size=batch_cfg.get("batch_size", DEFAULT_BATCH_SIZE),
-            delay_between_batches=batch_cfg.get("delay_between_batches", DEFAULT_DELAY_BETWEEN_BATCHES),
+            delay_between_batches=batch_cfg.get(
+                "delay_between_batches", DEFAULT_DELAY_BETWEEN_BATCHES
+            ),
             max_retries=batch_cfg.get("max_retries", DEFAULT_MAX_RETRIES),
             retry_delay=batch_cfg.get("retry_delay", DEFAULT_RETRY_DELAY),
             save_progress=batch_cfg.get("save_progress", True),
             progress_dir=batch_cfg.get("progress_dir", DEFAULT_PROGRESS_DIR),
             analyze_patterns=analyze_patterns,
-            min_quality=llm_cfg.get("min_quality_score", DEFAULT_MIN_QUALITY)
+            min_quality=llm_cfg.get("min_quality_score", DEFAULT_MIN_QUALITY),
         )
 
     def _ensure_progress_dir(self):
         """Create progress directory if it doesn't exist."""
-        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR))
+        progress_dir = Path(
+            self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR)
+        )
         progress_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_progress_file(self, repo_name: str) -> Path:
         """Get path to progress file for a repository."""
-        progress_dir = Path(self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR))
+        progress_dir = Path(
+            self.config.get("batch", {}).get("progress_dir", DEFAULT_PROGRESS_DIR)
+        )
         # Create safe filename from repo name
         safe_name = hashlib.md5(repo_name.encode()).hexdigest()[:PROGRESS_HASH_LENGTH]
         return progress_dir / f"{safe_name}.json"
@@ -162,11 +171,11 @@ class BatchProcessor(BaseTool):
         with open(progress_file, "w") as f:
             json.dump(progress.to_dict(), f, indent=2)
 
-    def _load_progress(self, repo_name: str) -> Optional[BatchProgress]:
+    def _load_progress(self, repo_name: str) -> BatchProgress | None:
         """Load progress from file if it exists."""
         progress_file = self._get_progress_file(repo_name)
         if progress_file.exists():
-            with open(progress_file, "r") as f:
+            with open(progress_file) as f:
                 return BatchProgress.from_dict(json.load(f))
         return None
 
@@ -184,16 +193,10 @@ class BatchProcessor(BaseTool):
     def _batch_files(self, files: list, batch_size: int) -> Iterator[list]:
         """Yield files in batches."""
         for i in range(0, len(files), batch_size):
-            yield files[i:i + batch_size]
+            yield files[i : i + batch_size]
 
     def _process_file_with_retry(
-            self,
-            gh,
-            repo,
-            file_node,
-            extractor,
-            max_retries: int,
-            retry_delay: float
+        self, gh, repo, file_node, extractor, max_retries: int, retry_delay: float
     ) -> list[CodeChunk]:
         """Process a single file with retry logic."""
         last_error = None
@@ -213,10 +216,7 @@ class BatchProcessor(BaseTool):
         raise last_error
 
     def batch_sync_repo(
-            self,
-            repo_name: str,
-            batch_config: BatchConfig = None,
-            resume: bool = True
+        self, repo_name: str, batch_config: BatchConfig = None, resume: bool = True
     ) -> str:
         """
         Sync a GitHub repository in batches with progress tracking.
@@ -282,7 +282,9 @@ class BatchProcessor(BaseTool):
             # Process files in batches
             all_chunks = []
 
-            for batch_num, batch in enumerate(self._batch_files(code_files, batch_config.batch_size)):
+            for batch_num, batch in enumerate(
+                self._batch_files(code_files, batch_config.batch_size)
+            ):
                 batch_start = batch_num * batch_config.batch_size
                 self.logger.info(
                     f"Processing batch {batch_num + 1} "
@@ -298,9 +300,12 @@ class BatchProcessor(BaseTool):
 
                     try:
                         chunks = self._process_file_with_retry(
-                            gh, repo, file_node, extractor,
+                            gh,
+                            repo,
+                            file_node,
+                            extractor,
                             batch_config.max_retries,
-                            batch_config.retry_delay
+                            batch_config.retry_delay,
                         )
                         all_chunks.extend(chunks)
                         progress.total_chunks += len(chunks)
@@ -308,23 +313,27 @@ class BatchProcessor(BaseTool):
 
                     except Exception as e:
                         self.logger.error(f"Failed to process {file_node.path}: {e}")
-                        progress.failed_files.append({
-                            "path": file_node.path,
-                            "error": str(e)
-                        })
+                        progress.failed_files.append(
+                            {"path": file_node.path, "error": str(e)}
+                        )
 
                     progress.processed_files += 1
                     self._notify_progress(progress)
 
                     # Save progress periodically
-                    if batch_config.save_progress and progress.processed_files % PROGRESS_SAVE_INTERVAL == 0:
+                    if (
+                        batch_config.save_progress
+                        and progress.processed_files % PROGRESS_SAVE_INTERVAL == 0
+                    ):
                         self._save_progress(progress)
 
                 # Rate limiting delay between batches
                 if batch_config.delay_between_batches > 0:
                     time.sleep(batch_config.delay_between_batches)
 
-            self.logger.info(f"Extracted {len(all_chunks)} chunks from {progress.processed_files} files")
+            self.logger.info(
+                f"Extracted {len(all_chunks)} chunks from {progress.processed_files} files"
+            )
 
             if not all_chunks:
                 self._clear_progress(repo_name)
@@ -337,8 +346,7 @@ class BatchProcessor(BaseTool):
                 self.logger.info("Analyzing patterns with LLM...")
                 try:
                     analyzed = analyzer.analyze_chunks(
-                        all_chunks,
-                        min_quality=batch_config.min_quality
+                        all_chunks, min_quality=batch_config.min_quality
                     )
 
                     for chunk, analysis in analyzed:
@@ -351,7 +359,7 @@ class BatchProcessor(BaseTool):
                             quality_score=analysis.quality_score,
                             source_repo=repo_name,
                             source_path=chunk.file_path,
-                            use_cases=analysis.use_cases
+                            use_cases=analysis.use_cases,
                         )
                         patterns_to_store.append(pattern)
 
@@ -371,12 +379,14 @@ class BatchProcessor(BaseTool):
                         quality_score=5,
                         source_repo=repo_name,
                         source_path=chunk.file_path,
-                        use_cases=[]
+                        use_cases=[],
                     )
                     patterns_to_store.append(pattern)
 
             # Store patterns using upsert for deduplication
-            self.logger.info(f"Storing {len(patterns_to_store)} patterns (with deduplication)...")
+            self.logger.info(
+                f"Storing {len(patterns_to_store)} patterns (with deduplication)..."
+            )
 
             for i, pattern in enumerate(patterns_to_store):
                 try:
@@ -385,7 +395,7 @@ class BatchProcessor(BaseTool):
                         collection_name=self.collection_name,
                         documents=[pattern.content],
                         metadata=[pattern.to_metadata()],
-                        ids=[pattern_id]
+                        ids=[pattern_id],
                     )
                     progress.stored_patterns += 1
 
@@ -401,7 +411,11 @@ class BatchProcessor(BaseTool):
 
             # Build summary
             elapsed = progress.elapsed_seconds
-            elapsed_str = f"{int(elapsed // 60)}m {int(elapsed % 60)}s" if elapsed >= 60 else f"{elapsed:.1f}s"
+            elapsed_str = (
+                f"{int(elapsed // 60)}m {int(elapsed % 60)}s"
+                if elapsed >= 60
+                else f"{elapsed:.1f}s"
+            )
 
             summary = (
                 f"[OK] Successfully synced {repo_name}\n\n"
@@ -435,7 +449,7 @@ class BatchProcessor(BaseTool):
                 return f"[ERROR] Error syncing repository: {e}\n\nProgress saved. Use resume=True to continue."
             return f"[ERROR] Error syncing repository: {e}"
 
-    def get_sync_progress(self, repo_name: str) -> Optional[dict]:
+    def get_sync_progress(self, repo_name: str) -> dict | None:
         """
         Get the current progress for a repository sync.
 

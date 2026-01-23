@@ -17,34 +17,29 @@ Environment variables can be set via:
     - MCP client headers (X-GITHUB-TOKEN, X-GEMINI-API-KEY, X-QDRANT-URL)
 """
 
-import os
 import logging
+import os
 
 # Disable FastMCP banner and logging to prevent stdout pollution
 os.environ["FASTMCP_SHOW_CLI_BANNER"] = "false"
 os.environ["FASTMCP_LOG_ENABLED"] = "false"
 
 from pathlib import Path
-from typing import Optional
-from contextvars import ContextVar
 
 import yaml
 from dotenv import load_dotenv
-from fastmcp import FastMCP, Context
+from fastmcp import FastMCP
 from qdrant_client import QdrantClient
 
-from tools import PatternTool, RepositoryTool, ScaffoldTool, StatsTool
-from tools.batch_processor import BatchProcessor, BatchConfig
 from embedding_manager import EmbeddingManager
+from tools import PatternTool, RepositoryTool, ScaffoldTool, StatsTool
+from tools.batch_processor import BatchProcessor
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('dna_server.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("dna_server.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -60,9 +55,10 @@ def get_env_or_header(key: str, header_key: str, default: str = None) -> str:
     """
     return os.getenv(key, default)
 
+
 # Load configuration
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+with open(CONFIG_PATH, encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 # Initialize MCP server
@@ -70,7 +66,9 @@ mcp = FastMCP("Architectural DNA")
 
 # Initialize embedding manager
 embedding_manager = EmbeddingManager(config)
-logger.info(f"Embedding model: {embedding_manager.model} ({embedding_manager.get_vector_size()} dimensions)")
+logger.info(
+    f"Embedding model: {embedding_manager.model} ({embedding_manager.get_vector_size()} dimensions)"
+)
 
 # Initialize Qdrant client with configured embeddings
 qdrant_url = os.getenv("QDRANT_URL", config["qdrant"]["url"])
@@ -99,17 +97,18 @@ repository_tool = RepositoryTool(client, COLLECTION_NAME, config, batch_processo
 # MCP Tool Registrations
 # ==============================================================================
 
+
 @mcp.tool()
 def store_pattern(
-        content: str,
-        title: str,
-        description: str,
-        category: str,
-        language: str = "python",
-        quality_score: int = 5,
-        source_repo: str = "manual",
-        source_path: str = "",
-        use_cases: list[str] | None = None
+    content: str,
+    title: str,
+    description: str,
+    category: str,
+    language: str = "python",
+    quality_score: int = 5,
+    source_repo: str = "manual",
+    source_path: str = "",
+    use_cases: list[str] | None = None,
 ) -> str:
     """
     Stores a high-quality code snippet or architectural pattern in the DNA bank.
@@ -137,17 +136,17 @@ def store_pattern(
         quality_score=quality_score,
         source_repo=source_repo,
         source_path=source_path,
-        use_cases=use_cases or []
+        use_cases=use_cases or [],
     )
 
 
 @mcp.tool()
 def search_dna(
-        query: str,
-        language: Optional[str] = None,
-        category: Optional[str] = None,
-        min_quality: int = 5,
-        limit: int = 10
+    query: str,
+    language: str | None = None,
+    category: str | None = None,
+    min_quality: int = 5,
+    limit: int = 10,
 ) -> str:
     """
     Searches the DNA bank for best practices matching the query.
@@ -167,7 +166,7 @@ def search_dna(
         language=language,
         category=category,
         min_quality=min_quality,
-        limit=limit
+        limit=limit,
     )
 
 
@@ -184,16 +183,13 @@ def list_my_repos(include_private: bool = True, include_orgs: bool = True) -> st
         Formatted list of repositories with their details
     """
     return repository_tool.list_my_repos(
-        include_private=include_private,
-        include_orgs=include_orgs
+        include_private=include_private, include_orgs=include_orgs
     )
 
 
 @mcp.tool()
 def sync_github_repo(
-        repo_name: str,
-        analyze_patterns: bool = True,
-        min_quality: int = 5
+    repo_name: str, analyze_patterns: bool = True, min_quality: int = 5
 ) -> str:
     """
     Syncs a GitHub repository into the DNA bank.
@@ -210,18 +206,13 @@ def sync_github_repo(
         Summary of the sync operation
     """
     return repository_tool.sync_github_repo(
-        repo_name=repo_name,
-        analyze_patterns=analyze_patterns,
-        min_quality=min_quality
+        repo_name=repo_name, analyze_patterns=analyze_patterns, min_quality=min_quality
     )
 
 
 @mcp.tool()
 def scaffold_project(
-        project_name: str,
-        project_type: str,
-        tech_stack: str,
-        output_dir: Optional[str] = None
+    project_name: str, project_type: str, tech_stack: str, output_dir: str | None = None
 ) -> str:
     """
     Scaffolds a new project using best practices from the DNA bank.
@@ -242,7 +233,7 @@ def scaffold_project(
         project_name=project_name,
         project_type=project_type,
         tech_stack=tech_stack,
-        output_dir=output_dir
+        output_dir=output_dir,
     )
 
 
@@ -281,15 +272,17 @@ def get_embedding_info() -> str:
     output += f"**Provider:** {info['provider']}\n"
     output += f"**Model:** {info['model']}\n"
     output += f"**Vector Size:** {info['vector_size']} dimensions\n"
-    output += f"**Chunking:** {'Enabled' if info['chunking_enabled'] else 'Disabled'}\n\n"
+    output += (
+        f"**Chunking:** {'Enabled' if info['chunking_enabled'] else 'Disabled'}\n\n"
+    )
 
     output += "**Preprocessing:**\n"
-    for key, value in info['preprocessing'].items():
+    for key, value in info["preprocessing"].items():
         output += f"  - {key}: {value}\n"
 
     output += "\n**Supported Models:**\n"
     for model, dims in EmbeddingManager.SUPPORTED_MODELS.items():
-        current = " (current)" if model == info['model'] else ""
+        current = " (current)" if model == info["model"] else ""
         output += f"  - {model} ({dims}d){current}\n"
 
     return output
@@ -297,11 +290,11 @@ def get_embedding_info() -> str:
 
 @mcp.tool()
 def batch_sync_repo(
-        repo_name: str,
-        batch_size: Optional[int] = None,
-        analyze_patterns: Optional[bool] = None,
-        min_quality: Optional[int] = None,
-        resume: bool = True
+    repo_name: str,
+    batch_size: int | None = None,
+    analyze_patterns: bool | None = None,
+    min_quality: int | None = None,
+    resume: bool = True,
 ) -> str:
     """
     Sync a large GitHub repository in batches with progress tracking.
@@ -331,9 +324,7 @@ def batch_sync_repo(
         batch_config.min_quality = min_quality
 
     return batch_processor.batch_sync_repo(
-        repo_name=repo_name,
-        batch_config=batch_config,
-        resume=resume
+        repo_name=repo_name, batch_config=batch_config, resume=resume
     )
 
 
@@ -406,7 +397,9 @@ def apply_header_overrides(headers: dict) -> dict:
         value = headers.get(header_name)
         if value:
             os.environ[env_name] = value
-            overrides[env_name] = "***" if "token" in header_name or "key" in header_name else value
+            overrides[env_name] = (
+                "***" if "token" in header_name or "key" in header_name else value
+            )
 
     return overrides
 

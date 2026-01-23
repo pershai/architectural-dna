@@ -1,11 +1,10 @@
 """Pattern management tools for storing and searching code patterns."""
 
-from typing import Optional
+from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
-from qdrant_client.models import Filter, FieldCondition, MatchValue, Range
-
-from models import StorePatternInput, SearchDNAInput
 from hybrid_search import HybridSearcher
+from models import SearchDNAInput, StorePatternInput
+
 from .base import BaseTool
 
 
@@ -18,16 +17,16 @@ class PatternTool(BaseTool):
         self.hybrid_searcher = HybridSearcher(self.config)
 
     def store_pattern(
-            self,
-            content: str,
-            title: str,
-            description: str,
-            category: str,
-            language: str = "python",
-            quality_score: int = 5,
-            source_repo: str = "manual",
-            source_path: str = "",
-            use_cases: list[str] = None
+        self,
+        content: str,
+        title: str,
+        description: str,
+        category: str,
+        language: str = "python",
+        quality_score: int = 5,
+        source_repo: str = "manual",
+        source_path: str = "",
+        use_cases: list[str] = None,
     ) -> str:
         """
         Store a high-quality code snippet or architectural pattern in the DNA bank.
@@ -57,23 +56,25 @@ class PatternTool(BaseTool):
                 quality_score=quality_score,
                 source_repo=source_repo,
                 source_path=source_path,
-                use_cases=use_cases or []
+                use_cases=use_cases or [],
             )
 
             # Store pattern
             self.client.add(
                 collection_name=self.collection_name,
                 documents=[validated.content],
-                metadata=[{
-                    "title": validated.title,
-                    "description": validated.description,
-                    "category": validated.category,
-                    "language": validated.language,
-                    "quality_score": validated.quality_score,
-                    "source_repo": validated.source_repo,
-                    "source_path": validated.source_path,
-                    "use_cases": validated.use_cases
-                }],
+                metadata=[
+                    {
+                        "title": validated.title,
+                        "description": validated.description,
+                        "category": validated.category,
+                        "language": validated.language,
+                        "quality_score": validated.quality_score,
+                        "source_repo": validated.source_repo,
+                        "source_path": validated.source_path,
+                        "use_cases": validated.use_cases,
+                    }
+                ],
             )
             self.logger.info(f"Stored pattern: {validated.title}")
             return f"[OK] Successfully indexed pattern: {validated.title}"
@@ -83,12 +84,12 @@ class PatternTool(BaseTool):
             return error_msg
 
     def search_dna(
-            self,
-            query: str,
-            language: Optional[str] = None,
-            category: Optional[str] = None,
-            min_quality: int = 5,
-            limit: int = 10
+        self,
+        query: str,
+        language: str | None = None,
+        category: str | None = None,
+        min_quality: int = 5,
+        limit: int = 10,
     ) -> str:
         """
         Search the DNA bank for best practices matching the query.
@@ -110,29 +111,26 @@ class PatternTool(BaseTool):
                 language=language,
                 category=category,
                 min_quality=min_quality,
-                limit=limit
+                limit=limit,
             )
 
             # Build filter conditions
             filter_conditions = []
 
             if validated.language:
-                filter_conditions.append({
-                    "key": "language",
-                    "match": {"value": validated.language}
-                })
+                filter_conditions.append(
+                    {"key": "language", "match": {"value": validated.language}}
+                )
 
             if validated.category:
-                filter_conditions.append({
-                    "key": "category",
-                    "match": {"value": validated.category}
-                })
+                filter_conditions.append(
+                    {"key": "category", "match": {"value": validated.category}}
+                )
 
             if validated.min_quality > 1:
-                filter_conditions.append({
-                    "key": "quality_score",
-                    "range": {"gte": validated.min_quality}
-                })
+                filter_conditions.append(
+                    {"key": "quality_score", "range": {"gte": validated.min_quality}}
+                )
 
             # Build filter
             query_filter = None
@@ -143,14 +141,13 @@ class PatternTool(BaseTool):
                         conditions.append(
                             FieldCondition(
                                 key=fc["key"],
-                                match=MatchValue(value=fc["match"]["value"])
+                                match=MatchValue(value=fc["match"]["value"]),
                             )
                         )
                     elif "range" in fc:
                         conditions.append(
                             FieldCondition(
-                                key=fc["key"],
-                                range=Range(gte=fc["range"]["gte"])
+                                key=fc["key"], range=Range(gte=fc["range"]["gte"])
                             )
                         )
 
@@ -164,14 +161,14 @@ class PatternTool(BaseTool):
                     collection_name=self.collection_name,
                     query=validated.query,
                     limit=validated.limit,
-                    query_filter=query_filter
+                    query_filter=query_filter,
                 )
             else:
                 search_results = self.client.query(
                     collection_name=self.collection_name,
                     query_text=validated.query,
                     query_filter=query_filter,
-                    limit=validated.limit
+                    limit=validated.limit,
                 )
 
             if not search_results:
@@ -179,20 +176,22 @@ class PatternTool(BaseTool):
 
             output = "Found the following architectural patterns:\n\n"
             for i, res in enumerate(search_results, 1):
-                metadata = res.metadata if hasattr(res, 'metadata') else {}
-                document = res.document if hasattr(res, 'document') else str(res)
+                metadata = res.metadata if hasattr(res, "metadata") else {}
+                document = res.document if hasattr(res, "document") else str(res)
 
-                title = metadata.get('title', metadata.get('description', f'Pattern {i}'))
-                lang = metadata.get('language', 'unknown')
-                category_val = metadata.get('category', '')
-                quality = metadata.get('quality_score', 'N/A')
-                source = metadata.get('source_repo', metadata.get('path', ''))
+                title = metadata.get(
+                    "title", metadata.get("description", f"Pattern {i}")
+                )
+                lang = metadata.get("language", "unknown")
+                category_val = metadata.get("category", "")
+                quality = metadata.get("quality_score", "N/A")
+                source = metadata.get("source_repo", metadata.get("path", ""))
 
                 output += f"### {i}. {title}\n"
                 output += f"**Language:** {lang}"
                 if category_val:
                     output += f" | **Category:** {category_val}"
-                if quality != 'N/A':
+                if quality != "N/A":
                     output += f" | **Quality:** {quality}/10"
                 if source:
                     output += f"\n**Source:** {source}"

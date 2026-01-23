@@ -4,12 +4,12 @@ import pytest
 from pydantic import ValidationError
 
 from models import (
-    PatternCategory,
     Language,
-    StorePatternInput,
+    PatternCategory,
+    ScaffoldProjectInput,
     SearchDNAInput,
+    StorePatternInput,
     SyncGitHubRepoInput,
-    ScaffoldProjectInput
 )
 
 
@@ -58,7 +58,7 @@ class TestStorePatternInput:
             description="A test pattern",
             category="utilities",
             language="python",
-            quality_score=8
+            quality_score=8,
         )
         assert data.content == "def hello(): pass"
         assert data.quality_score == 8
@@ -71,7 +71,7 @@ class TestStorePatternInput:
                 title="Test",
                 description="Description here",
                 category="utilities",
-                language="python"
+                language="python",
             )
 
     def test_title_too_short(self):
@@ -82,7 +82,7 @@ class TestStorePatternInput:
                 title="ab",
                 description="Description here",
                 category="utilities",
-                language="python"
+                language="python",
             )
 
     def test_invalid_category(self):
@@ -93,7 +93,7 @@ class TestStorePatternInput:
                 title="Test Pattern",
                 description="A test pattern",
                 category="invalid_category",
-                language="python"
+                language="python",
             )
 
     def test_invalid_language(self):
@@ -104,7 +104,7 @@ class TestStorePatternInput:
                 title="Test Pattern",
                 description="A test pattern",
                 category="utilities",
-                language="invalid_lang"
+                language="invalid_lang",
             )
 
     def test_quality_score_bounds(self):
@@ -116,7 +116,7 @@ class TestStorePatternInput:
                 description="A test pattern",
                 category="utilities",
                 language="python",
-                quality_score=11
+                quality_score=11,
             )
 
         with pytest.raises(ValidationError):
@@ -126,7 +126,7 @@ class TestStorePatternInput:
                 description="A test pattern",
                 category="utilities",
                 language="python",
-                quality_score=0
+                quality_score=0,
             )
 
 
@@ -140,7 +140,7 @@ class TestSearchDNAInput:
             limit=5,
             min_quality=7,
             language="python",
-            category="security"
+            category="security",
         )
         assert data.query == "authentication patterns"
         assert data.limit == 5
@@ -191,7 +191,7 @@ class TestScaffoldProjectInput:
         data = ScaffoldProjectInput(
             project_name="my-new-project",
             project_type="REST API",
-            tech_stack="Python, FastAPI"
+            tech_stack="Python, FastAPI",
         )
         assert data.project_name == "my-new-project"
 
@@ -199,14 +199,10 @@ class TestScaffoldProjectInput:
         """Test that invalid characters in project name raise error."""
         with pytest.raises(ValidationError):
             ScaffoldProjectInput(
-                project_name="invalid name!",
-                project_type="API",
-                tech_stack="Python"
+                project_name="invalid name!", project_type="API", tech_stack="Python"
             )
 
         with pytest.raises(ValidationError):
             ScaffoldProjectInput(
-                project_name="project@name",
-                project_type="API",
-                tech_stack="Python"
+                project_name="project@name", project_type="API", tech_stack="Python"
             )

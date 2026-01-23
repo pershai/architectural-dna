@@ -7,13 +7,23 @@ echo "========================================"
 echo "Architectural DNA - Starting Up"
 echo "========================================"
 
-# Wait for Qdrant to be ready
-echo "Waiting for Qdrant to be ready..."
-until curl -sf http://qdrant:6333/healthz > /dev/null 2>&1; do
-    echo "  Qdrant not ready yet, waiting..."
-    sleep 2
-done
-echo "✓ Qdrant is ready"
+# Wait for Qdrant to be ready (if enabled)
+if [ "${SKIP_QDRANT_CHECK:-false}" = "true" ]; then
+    echo "Skipping Qdrant check (SKIP_QDRANT_CHECK=true)"
+else
+    echo "Waiting for Qdrant to be ready..."
+    for i in $(seq 1 30); do
+        if curl -sf http://qdrant:6333/healthz > /dev/null 2>&1; then
+            echo "✓ Qdrant is ready"
+            break
+        fi
+        echo "  Qdrant not ready yet, waiting... ($i/30)"
+        sleep 2
+        if [ "$i" = "30" ]; then
+            echo "⚠️  WARNING: Qdrant not available, continuing anyway..."
+        fi
+    done
+fi
 
 # Check environment variables
 echo ""
@@ -40,9 +50,13 @@ with open('config.yaml', 'r') as f:
 "
 
 # Initialize collection if needed
-echo ""
-echo "Initializing Qdrant collection..."
-python - <<EOF
+if [ "${SKIP_QDRANT_CHECK:-false}" = "true" ]; then
+    echo ""
+    echo "Skipping Qdrant collection initialization (SKIP_QDRANT_CHECK=true)"
+else
+    echo ""
+    echo "Initializing Qdrant collection..."
+    python - <<EOF || echo "⚠️  WARNING: Could not initialize Qdrant collection"
 import os
 import yaml
 from qdrant_client import QdrantClient
@@ -67,6 +81,7 @@ else:
     collection_info = client.get_collection(collection_name)
     print(f"  ✓ Collection '{collection_name}' exists ({collection_info.points_count} patterns)")
 EOF
+fi
 
 echo ""
 echo "========================================"

@@ -1,9 +1,9 @@
 """Hybrid search combining semantic (dense) and keyword (sparse) search."""
 
 import logging
-from typing import Optional, Any
-from collections import Counter
 import re
+from collections import Counter
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +35,38 @@ class HybridSearcher:
             List of keywords
         """
         # Tokenize: split by non-alphanumeric, keep underscores for identifiers
-        tokens = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', text.lower())
+        tokens = re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", text.lower())
 
         # Remove common programming keywords and short words
         stop_words = {
-            'def', 'class', 'if', 'else', 'for', 'while', 'return', 'import',
-            'from', 'as', 'try', 'except', 'with', 'in', 'is', 'not', 'and',
-            'or', 'the', 'a', 'an', 'to', 'of', 'it', 'be', 'at', 'by', 'on'
+            "def",
+            "class",
+            "if",
+            "else",
+            "for",
+            "while",
+            "return",
+            "import",
+            "from",
+            "as",
+            "try",
+            "except",
+            "with",
+            "in",
+            "is",
+            "not",
+            "and",
+            "or",
+            "the",
+            "a",
+            "an",
+            "to",
+            "of",
+            "it",
+            "be",
+            "at",
+            "by",
+            "on",
         }
         tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
 
@@ -52,9 +77,7 @@ class HybridSearcher:
         return [word for word, count in counter.most_common(top_n)]
 
     def compute_keyword_score(
-            self,
-            query_keywords: list[str],
-            document_text: str
+        self, query_keywords: list[str], document_text: str
     ) -> float:
         """
         Compute keyword match score between query and document.
@@ -88,10 +111,7 @@ class HybridSearcher:
         return min(1.0, score)
 
     def rerank_results(
-            self,
-            query: str,
-            results: list[Any],
-            semantic_scores: list[float]
+        self, query: str, results: list[Any], semantic_scores: list[float]
     ) -> list[tuple[Any, float]]:
         """
         Rerank search results using hybrid scoring.
@@ -106,24 +126,24 @@ class HybridSearcher:
         """
         if not self.enabled or not results:
             # Return results with original scores
-            return list(zip(results, semantic_scores))
+            return list(zip(results, semantic_scores, strict=False))
 
         # Extract keywords from query
         query_keywords = self.extract_keywords(query)
         logger.debug(f"Query keywords: {query_keywords}")
 
         reranked = []
-        for result, semantic_score in zip(results, semantic_scores):
+        for result, semantic_score in zip(results, semantic_scores, strict=False):
             # Get document text
-            document = result.document if hasattr(result, 'document') else str(result)
+            document = result.document if hasattr(result, "document") else str(result)
 
             # Compute keyword score
             keyword_score = self.compute_keyword_score(query_keywords, document)
 
             # Combine scores
             hybrid_score = (
-                self.semantic_weight * semantic_score +
-                self.keyword_weight * keyword_score
+                self.semantic_weight * semantic_score
+                + self.keyword_weight * keyword_score
             )
 
             reranked.append((result, hybrid_score))
@@ -139,12 +159,12 @@ class HybridSearcher:
         return reranked
 
     def search_with_hybrid(
-            self,
-            client: Any,
-            collection_name: str,
-            query: str,
-            limit: int = 10,
-            query_filter: Optional[Any] = None
+        self,
+        client: Any,
+        collection_name: str,
+        query: str,
+        limit: int = 10,
+        query_filter: Any | None = None,
     ) -> list[Any]:
         """
         Perform hybrid search on Qdrant collection.
@@ -167,7 +187,7 @@ class HybridSearcher:
             collection_name=collection_name,
             query_text=query,
             query_filter=query_filter,
-            limit=fetch_limit
+            limit=fetch_limit,
         )
 
         if not results:
@@ -177,7 +197,7 @@ class HybridSearcher:
         semantic_scores = []
         for res in results:
             # Qdrant query returns results with scores
-            score = res.score if hasattr(res, 'score') else 1.0
+            score = res.score if hasattr(res, "score") else 1.0
             semantic_scores.append(score)
 
         # Rerank with hybrid scoring
@@ -196,5 +216,5 @@ class HybridSearcher:
         return {
             "enabled": self.enabled,
             "semantic_weight": self.semantic_weight,
-            "keyword_weight": self.keyword_weight
+            "keyword_weight": self.keyword_weight,
         }
