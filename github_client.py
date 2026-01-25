@@ -4,25 +4,18 @@ import fnmatch
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
-from github import Github, Auth
+from github import Auth, Github
 from github.ContentFile import ContentFile
 from github.Repository import Repository
 
-from models import RepoInfo, FileNode, Language
 from github_cache import (
     GitHubCache,
-    make_repo_list_key,
-    make_file_tree_key,
     make_file_content_key,
-    make_repository_key,
+    make_file_tree_key,
+    make_repo_list_key,
 )
-from constants import (
-    CACHE_TTL_REPO_LIST,
-    CACHE_TTL_FILE_TREE,
-    CACHE_TTL_FILE_CONTENT,
-)
+from models import FileNode, Language, RepoInfo
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +28,27 @@ class GitHubClient:
 
     # Directories to skip
     IGNORED_DIRS = {
-        ".git", "node_modules", "venv", "__pycache__",
-        "dist", "build", "target", ".idea", ".vscode",
-        "vendor", "deps", ".gradle", "bin", "obj"
+        ".git",
+        "node_modules",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        "target",
+        ".idea",
+        ".vscode",
+        "vendor",
+        "deps",
+        ".gradle",
+        "bin",
+        "obj",
     }
 
     def __init__(
         self,
-        token: Optional[str] = None,
-        cache: Optional[GitHubCache] = None,
-        config: Optional[dict] = None
+        token: str | None = None,
+        cache: GitHubCache | None = None,
+        config: dict | None = None,
     ):
         """
         Initialize the GitHub client.
@@ -80,11 +84,11 @@ class GitHubClient:
         return self._user
 
     def list_repositories(
-            self,
-            include_private: bool = True,
-            include_orgs: bool = True,
-            excluded_patterns: Optional[list[str]] = None,
-            use_cache: bool = True
+        self,
+        include_private: bool = True,
+        include_orgs: bool = True,
+        excluded_patterns: list[str] | None = None,
+        use_cache: bool = True,
     ) -> list[RepoInfo]:
         """
         List all repositories accessible to the authenticated user.
@@ -108,7 +112,8 @@ class GitHubClient:
                 logger.debug(f"Cache hit for repository list: {cache_key}")
                 # Apply exclusion patterns to cached results
                 return [
-                    r for r in cached
+                    r
+                    for r in cached
                     if not any(fnmatch.fnmatch(r.name, p) for p in excluded_patterns)
                 ]
 
@@ -124,15 +129,17 @@ class GitHubClient:
             if repo.owner.login != self.user.login and not include_orgs:
                 continue
 
-            repos.append(RepoInfo(
-                full_name=repo.full_name,
-                name=repo.name,
-                description=repo.description,
-                language=repo.language,
-                is_private=repo.private,
-                default_branch=repo.default_branch,
-                url=repo.html_url
-            ))
+            repos.append(
+                RepoInfo(
+                    full_name=repo.full_name,
+                    name=repo.name,
+                    description=repo.description,
+                    language=repo.language,
+                    is_private=repo.private,
+                    default_branch=repo.default_branch,
+                    url=repo.html_url,
+                )
+            )
 
         # Cache the unfiltered results (exclusion patterns are applied after)
         ttl = self.cache.get_ttl_for_type(GitHubCache.PREFIX_REPO_LIST, self.config)
@@ -141,7 +148,8 @@ class GitHubClient:
 
         # Apply exclusion patterns
         return [
-            r for r in repos
+            r
+            for r in repos
             if not any(fnmatch.fnmatch(r.name, p) for p in excluded_patterns)
         ]
 
@@ -164,11 +172,11 @@ class GitHubClient:
         return self.github.get_repo(repo_name)
 
     def get_file_tree(
-            self,
-            repo: Repository,
-            path: str = "",
-            recursive: bool = True,
-            use_cache: bool = True
+        self,
+        repo: Repository,
+        path: str = "",
+        recursive: bool = True,
+        use_cache: bool = True,
     ) -> list[FileNode]:
         """
         Get the file tree for a repository.
@@ -189,7 +197,10 @@ class GitHubClient:
             if cached is not None:
                 logger.debug(f"Cache hit for file tree: {repo.full_name}")
                 # Convert cached dicts back to FileNode objects
-                return [FileNode(**node) if isinstance(node, dict) else node for node in cached]
+                return [
+                    FileNode(**node) if isinstance(node, dict) else node
+                    for node in cached
+                ]
 
         nodes = []
 
@@ -212,20 +223,28 @@ class GitHubClient:
                 name=content.name,
                 is_dir=(content.type == "dir"),
                 size=content.size or 0,
-                sha=content.sha
+                sha=content.sha,
             )
             nodes.append(node)
 
             # Recurse into directories
             if recursive and content.type == "dir":
-                nodes.extend(self.get_file_tree(repo, content.path, recursive, use_cache=False))
+                nodes.extend(
+                    self.get_file_tree(repo, content.path, recursive, use_cache=False)
+                )
 
         # Cache the complete tree
         if path == "" and recursive:
             ttl = self.cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_TREE, self.config)
             # Convert FileNode objects to dicts for JSON serialization
             cacheable_nodes = [
-                {"path": n.path, "name": n.name, "is_dir": n.is_dir, "size": n.size, "sha": n.sha}
+                {
+                    "path": n.path,
+                    "name": n.name,
+                    "is_dir": n.is_dir,
+                    "size": n.size,
+                    "sha": n.sha,
+                }
                 for n in nodes
             ]
             self.cache.set(cache_key, cacheable_nodes, ttl=ttl)
@@ -233,7 +252,9 @@ class GitHubClient:
 
         return nodes
 
-    def get_code_files(self, repo: Repository, use_cache: bool = True) -> list[FileNode]:
+    def get_code_files(
+        self, repo: Repository, use_cache: bool = True
+    ) -> list[FileNode]:
         """
         Get only code files (filtered by extension).
 
@@ -246,17 +267,18 @@ class GitHubClient:
         """
         all_files = self.get_file_tree(repo, use_cache=use_cache)
         return [
-            f for f in all_files
+            f
+            for f in all_files
             if not f.is_dir and Path(f.path).suffix in self.CODE_EXTENSIONS
         ]
 
     def get_file_content(
-            self,
-            repo: Repository,
-            file_path: str,
-            sha: Optional[str] = None,
-            use_cache: bool = True
-    ) -> Optional[str]:
+        self,
+        repo: Repository,
+        file_path: str,
+        sha: str | None = None,
+        use_cache: bool = True,
+    ) -> str | None:
         """
         Get the content of a specific file.
 
@@ -285,8 +307,12 @@ class GitHubClient:
                 # Cache using the actual SHA from the content
                 if use_cache:
                     actual_sha = sha or content.sha
-                    cache_key = make_file_content_key(repo.full_name, file_path, actual_sha)
-                    ttl = self.cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_CONTENT, self.config)
+                    cache_key = make_file_content_key(
+                        repo.full_name, file_path, actual_sha
+                    )
+                    ttl = self.cache.get_ttl_for_type(
+                        GitHubCache.PREFIX_FILE_CONTENT, self.config
+                    )
                     self.cache.set(cache_key, decoded, ttl=ttl)
                     logger.debug(f"Cached file content: {file_path}")
 

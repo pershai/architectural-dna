@@ -142,7 +142,7 @@ Choose your deployment method:
 
 ```bash
 # Clone and start
-git clone https://github.com/yourusername/architectural-dna.git
+git clone https://github.com/pershai/architectural-dna.git
 cd architectural-dna
 docker-compose up -d
 ```

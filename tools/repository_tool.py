@@ -2,14 +2,20 @@
 
 from constants import LARGE_REPO_THRESHOLD
 from models import Pattern, PatternCategory
+
 from .base import BaseTool
 
 
 class RepositoryTool(BaseTool):
     """Tool for GitHub repository operations and synchronization."""
 
-    def __init__(self, qdrant_client, collection_name: str, config: dict = None,
-                 batch_processor=None):
+    def __init__(
+        self,
+        qdrant_client,
+        collection_name: str,
+        config: dict = None,
+        batch_processor=None,
+    ):
         """
         Initialize repository tool.
 
@@ -27,9 +33,7 @@ class RepositoryTool(BaseTool):
         self._batch_processor = batch_processor
 
     def list_my_repos(
-            self,
-            include_private: bool = True,
-            include_orgs: bool = True
+        self, include_private: bool = True, include_orgs: bool = True
     ) -> str:
         """
         List all your GitHub repositories available for DNA extraction.
@@ -48,7 +52,7 @@ class RepositoryTool(BaseTool):
             repos = gh.list_repositories(
                 include_private=include_private,
                 include_orgs=include_orgs,
-                excluded_patterns=excluded
+                excluded_patterns=excluded,
             )
 
             if not repos:
@@ -76,10 +80,7 @@ class RepositoryTool(BaseTool):
             return f"[ERROR] Error listing repositories: {e}"
 
     def sync_github_repo(
-            self,
-            repo_name: str,
-            analyze_patterns: bool = True,
-            min_quality: int = 5
+        self, repo_name: str, analyze_patterns: bool = True, min_quality: int = 5
     ) -> str:
         """
         Sync a GitHub repository into the DNA bank.
@@ -118,7 +119,6 @@ class RepositoryTool(BaseTool):
                     f"Large repo detected ({total_files} files > {LARGE_REPO_THRESHOLD}), "
                     "using batch processing..."
                 )
-                from .batch_processor import BatchConfig
                 batch_config = self._batch_processor._get_default_batch_config()
                 batch_config.analyze_patterns = analyze_patterns
                 batch_config.min_quality = min_quality
@@ -150,8 +150,7 @@ class RepositoryTool(BaseTool):
                 try:
                     analyzer = self.get_llm_analyzer()
                     min_qual = self.config.get("llm", {}).get(
-                        "min_quality_score",
-                        min_quality
+                        "min_quality_score", min_quality
                     )
 
                     self.logger.info(
@@ -169,7 +168,7 @@ class RepositoryTool(BaseTool):
                             quality_score=analysis.quality_score,
                             source_repo=repo_name,
                             source_path=chunk.file_path,
-                            use_cases=analysis.use_cases
+                            use_cases=analysis.use_cases,
                         )
                         patterns_to_store.append(pattern)
 
@@ -191,7 +190,7 @@ class RepositoryTool(BaseTool):
                         quality_score=5,
                         source_repo=repo_name,
                         source_path=chunk.file_path,
-                        use_cases=[]
+                        use_cases=[],
                     )
                     patterns_to_store.append(pattern)
 
@@ -204,7 +203,7 @@ class RepositoryTool(BaseTool):
                         collection_name=self.collection_name,
                         documents=[pattern.content],
                         metadata=[pattern.to_metadata()],
-                        ids=[pattern_id]
+                        ids=[pattern_id],
                     )
                     stored_count += 1
                 except Exception as e:

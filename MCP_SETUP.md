@@ -15,7 +15,7 @@ Complete instructions for connecting Architectural DNA to various AI assistants.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/architectural-dna.git
+git clone https://github.com/pershai/architectural-dna.git
 cd architectural-dna
 
 # Start with Docker
@@ -351,5 +351,5 @@ docker-compose ps
 ## Need Help?
 
 - Check [DOCKER.md](DOCKER.md) for Docker-specific issues
-- Review [README.md](README.md) for feature documentation
+- Review [README.md](../../README.md) for feature documentation
 - Open an issue on GitHub for bugs or feature requests

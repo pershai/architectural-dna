@@ -1,11 +1,11 @@
 """LLM-powered code pattern analysis using Google Gemini."""
 
-import json
 import logging
 import os
-from typing import Optional
+import time
 
 from google import genai
+from google.genai import errors as genai_errors
 
 from models import CodeChunk, PatternAnalysis, PatternCategory
 from utils import parse_json_from_llm_response
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class LLMAnalyzer:
     """Uses LLM to identify and describe code patterns."""
 
-    ANALYSIS_PROMPT = '''Analyze this code snippet and determine if it represents a reusable architectural pattern or best practice.
+    ANALYSIS_PROMPT = """Analyze this code snippet and determine if it represents a reusable architectural pattern or best practice.
 
 ```{language}
 {code}
@@ -47,15 +47,26 @@ Be strict with quality_score:
 - 1-3: Works but has issues (no docs, poor naming, anti-patterns)
 - 4-6: Decent code that could be improved
 - 7-8: Good, clean code with some documentation
-- 9-10: Excellent, production-ready with good docs and error handling'''
+- 9-10: Excellent, production-ready with good docs and error handling"""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash"):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str | None = None,
+        max_retries: int | None = None,
+        initial_retry_delay: float | None = None,
+        max_retry_delay: float | None = None,
+    ):
         """
         Initialize the LLM analyzer.
-        
+
         Args:
             api_key: Gemini API key. If not provided, reads from GEMINI_API_KEY env var.
-            model: Gemini model to use (default: gemini-2.0-flash for speed/cost)
+            model: Gemini model to use. If not provided, reads from GEMINI_MODEL env var
+                   or defaults to gemini-2.0-flash.
+            max_retries: Maximum number of retries for rate-limited requests.
+            initial_retry_delay: Initial delay in seconds before first retry.
+            max_retry_delay: Maximum delay in seconds between retries.
         """
         api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -65,15 +76,20 @@ Be strict with quality_score:
             )
 
         self.client = genai.Client(api_key=api_key)
-        self.model = model
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        self.max_retries = max_retries if max_retries is not None else 5
+        self.initial_retry_delay = (
+            initial_retry_delay if initial_retry_delay is not None else 1.0
+        )
+        self.max_retry_delay = max_retry_delay if max_retry_delay is not None else 60.0
 
-    def analyze_chunk(self, chunk: CodeChunk) -> Optional[PatternAnalysis]:
+    def analyze_chunk(self, chunk: CodeChunk) -> PatternAnalysis | None:
         """
         Analyze a code chunk to determine if it's a reusable pattern.
-        
+
         Args:
             chunk: CodeChunk to analyze
-        
+
         Returns:
             PatternAnalysis if analysis successful, None otherwise
         """
@@ -81,32 +97,68 @@ Be strict with quality_score:
             language=chunk.language.value,
             code=chunk.content,
             context=chunk.context or "N/A",
-            file_path=chunk.file_path
+            file_path=chunk.file_path,
         )
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt
-            )
-            result = self._parse_response(response.text)
-            return result
-        except Exception as e:
-            logger.error(f"Error analyzing chunk {chunk.name}: {e}")
-            return None
+        delay = self.initial_retry_delay
+        last_error = None
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model, contents=prompt
+                )
+                result = self._parse_response(response.text)
+                return result
+            except genai_errors.ClientError as e:
+                # Check for rate limit errors (429)
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    last_error = e
+                    if attempt < self.max_retries:
+                        logger.warning(
+                            "Rate limited (attempt %d/%d), waiting %.1fs before retry...",
+                            attempt + 1,
+                            self.max_retries + 1,
+                            delay,
+                        )
+                        time.sleep(delay)
+                        # Exponential backoff with cap
+                        delay = min(delay * 2, self.max_retry_delay)
+                        continue
+                    else:
+                        logger.error(
+                            "Rate limit exceeded after %d attempts for chunk %s: %s",
+                            self.max_retries + 1,
+                            chunk.name,
+                            e,
+                        )
+                        return None
+                else:
+                    # Non-rate-limit client error
+                    logger.error(
+                        "API client error analyzing chunk %s: %s", chunk.name, e
+                    )
+                    return None
+            except Exception as e:
+                logger.error("Error analyzing chunk %s: %s", chunk.name, e)
+                return None
+
+        # Should not reach here, but just in case
+        logger.error(
+            "Failed to analyze chunk %s after retries: %s", chunk.name, last_error
+        )
+        return None
 
     def analyze_chunks(
-            self,
-            chunks: list[CodeChunk],
-            min_quality: int = 5
+        self, chunks: list[CodeChunk], min_quality: int = 5
     ) -> list[tuple[CodeChunk, PatternAnalysis]]:
         """
         Analyze multiple chunks and filter by quality.
-        
+
         Args:
             chunks: List of CodeChunks to analyze
             min_quality: Minimum quality score to include (1-10)
-        
+
         Returns:
             List of (chunk, analysis) tuples for chunks that are patterns
         """
@@ -119,7 +171,11 @@ Be strict with quality_score:
 
             analysis = self.analyze_chunk(chunk)
 
-            if analysis and analysis.is_pattern and analysis.quality_score >= min_quality:
+            if (
+                analysis
+                and analysis.is_pattern
+                and analysis.quality_score >= min_quality
+            ):
                 results.append((chunk, analysis))
                 logger.info(
                     f"Found pattern: {analysis.title} (score: {analysis.quality_score})"
@@ -133,7 +189,7 @@ Be strict with quality_score:
 
         return results
 
-    def _parse_response(self, response_text: str) -> Optional[PatternAnalysis]:
+    def _parse_response(self, response_text: str) -> PatternAnalysis | None:
         """Parse the LLM response into a PatternAnalysis object."""
         data = parse_json_from_llm_response(response_text)
         if not data:
@@ -153,7 +209,7 @@ Be strict with quality_score:
                 description=data.get("description", ""),
                 category=category,
                 quality_score=min(10, max(1, int(data.get("quality_score", 5)))),
-                use_cases=data.get("use_cases", [])
+                use_cases=data.get("use_cases", []),
             )
         except (KeyError, TypeError, ValueError) as e:
             logger.error(f"Failed to construct PatternAnalysis from data: {e}")
@@ -166,7 +222,10 @@ class MockLLMAnalyzer:
     def analyze_chunk(self, chunk: CodeChunk) -> PatternAnalysis:
         """Return a mock analysis based on chunk characteristics."""
         # Simple heuristics for testing
-        is_pattern = len(chunk.content) > 200 and chunk.chunk_type in ("class", "function")
+        is_pattern = len(chunk.content) > 200 and chunk.chunk_type in (
+            "class",
+            "function",
+        )
 
         return PatternAnalysis(
             is_pattern=is_pattern,
@@ -174,13 +233,11 @@ class MockLLMAnalyzer:
             description=f"A {chunk.chunk_type} extracted from {chunk.file_path}",
             category=PatternCategory.OTHER,
             quality_score=6 if is_pattern else 3,
-            use_cases=["General use"]
+            use_cases=["General use"],
         )
 
     def analyze_chunks(
-            self,
-            chunks: list[CodeChunk],
-            min_quality: int = 5
+        self, chunks: list[CodeChunk], min_quality: int = 5
     ) -> list[tuple[CodeChunk, PatternAnalysis]]:
         """Analyze chunks using mock logic."""
         results = []

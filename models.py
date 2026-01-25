@@ -3,7 +3,6 @@
 import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -33,6 +32,7 @@ def generate_pattern_id(repo_name: str, file_path: str, content: str) -> str:
 
 class PatternCategory(str, Enum):
     """Categories for code patterns."""
+
     ARCHITECTURE = "architecture"
     ERROR_HANDLING = "error_handling"
     CONFIGURATION = "configuration"
@@ -47,6 +47,7 @@ class PatternCategory(str, Enum):
 
 class Language(str, Enum):
     """Supported programming languages."""
+
     PYTHON = "python"
     JAVA = "java"
     JAVASCRIPT = "javascript"
@@ -74,19 +75,21 @@ class Language(str, Enum):
 @dataclass
 class CodeChunk:
     """A chunk of code extracted from a file."""
+
     content: str
     file_path: str
     language: Language
     start_line: int
     end_line: int
     chunk_type: str  # "class", "function", "file", etc.
-    name: Optional[str] = None  # Class/function name if applicable
-    context: Optional[str] = None  # Imports, class hierarchy, etc.
+    name: str | None = None  # Class/function name if applicable
+    context: str | None = None  # Imports, class hierarchy, etc.
 
 
 @dataclass
 class PatternAnalysis:
     """LLM analysis result for a code chunk."""
+
     is_pattern: bool
     title: str
     description: str
@@ -98,6 +101,7 @@ class PatternAnalysis:
 @dataclass
 class Pattern:
     """A code pattern ready for storage in the DNA bank."""
+
     content: str
     title: str
     description: str
@@ -107,7 +111,7 @@ class Pattern:
     source_repo: str
     source_path: str
     use_cases: list[str] = field(default_factory=list)
-    
+
     def to_metadata(self) -> dict:
         """Convert to metadata dict for Qdrant storage."""
         return {
@@ -129,10 +133,11 @@ class Pattern:
 @dataclass
 class RepoInfo:
     """Information about a GitHub repository."""
+
     full_name: str
     name: str
-    description: Optional[str]
-    language: Optional[str]
+    description: str | None
+    language: str | None
     is_private: bool
     default_branch: str
     url: str
@@ -141,16 +146,18 @@ class RepoInfo:
 @dataclass
 class FileNode:
     """A file or directory in a repository."""
+
     path: str
     name: str
     is_dir: bool
     size: int = 0
-    sha: Optional[str] = None
+    sha: str | None = None
 
 
 @dataclass
 class ProjectStructure:
     """Structure for a scaffolded project."""
+
     name: str
     directories: list[str]
     files: dict[str, str]  # path -> content
@@ -158,8 +165,10 @@ class ProjectStructure:
 
 # Pydantic models for input validation
 
+
 class StorePatternInput(BaseModel):
     """Input validation for store_pattern tool."""
+
     content: str = Field(..., min_length=10, description="The code content")
     title: str = Field(..., min_length=3, max_length=200, description="Pattern title")
     description: str = Field(..., min_length=10, description="Pattern description")
@@ -181,7 +190,7 @@ class StorePatternInput(BaseModel):
             valid = [c.value for c in PatternCategory]
             raise ValueError(
                 f"Invalid category '{v}'. Must be one of: {', '.join(valid)}"
-            )
+            ) from None
 
     @field_validator("language")
     @classmethod
@@ -194,20 +203,21 @@ class StorePatternInput(BaseModel):
             valid = [lang.value for lang in Language if lang != Language.UNKNOWN]
             raise ValueError(
                 f"Invalid language '{v}'. Must be one of: {', '.join(valid)}"
-            )
+            ) from None
 
 
 class SearchDNAInput(BaseModel):
     """Input validation for search_dna tool."""
+
     query: str = Field(..., min_length=3, description="Search query")
     limit: int = Field(10, ge=1, le=100, description="Max results to return")
     min_quality: int = Field(5, ge=1, le=10, description="Minimum quality score")
-    language: Optional[str] = Field(None, description="Filter by language")
-    category: Optional[str] = Field(None, description="Filter by category")
+    language: str | None = Field(None, description="Filter by language")
+    category: str | None = Field(None, description="Filter by category")
 
     @field_validator("language")
     @classmethod
-    def validate_language(cls, v: Optional[str]) -> Optional[str]:
+    def validate_language(cls, v: str | None) -> str | None:
         """Validate language if provided."""
         if v is None:
             return v
@@ -218,11 +228,11 @@ class SearchDNAInput(BaseModel):
             valid = [lang.value for lang in Language if lang != Language.UNKNOWN]
             raise ValueError(
                 f"Invalid language '{v}'. Must be one of: {', '.join(valid)}"
-            )
+            ) from None
 
     @field_validator("category")
     @classmethod
-    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+    def validate_category(cls, v: str | None) -> str | None:
         """Validate category if provided."""
         if v is None:
             return v
@@ -233,33 +243,32 @@ class SearchDNAInput(BaseModel):
             valid = [c.value for c in PatternCategory]
             raise ValueError(
                 f"Invalid category '{v}'. Must be one of: {', '.join(valid)}"
-            )
+            ) from None
 
 
 class SyncGitHubRepoInput(BaseModel):
     """Input validation for sync_github_repo tool."""
+
     repo_name: str = Field(
         ...,
         pattern=r"^[\w\-\.]+/[\w\-\.]+$",
-        description="Repository in format 'owner/repo'"
+        description="Repository in format 'owner/repo'",
     )
     analyze: bool = Field(True, description="Whether to analyze patterns with LLM")
     min_quality: int = Field(
-        5,
-        ge=1,
-        le=10,
-        description="Minimum quality score for patterns"
+        5, ge=1, le=10, description="Minimum quality score for patterns"
     )
 
 
 class ScaffoldProjectInput(BaseModel):
     """Input validation for scaffold_project tool."""
+
     project_name: str = Field(
         ...,
         min_length=1,
         max_length=100,
         pattern=r"^[a-zA-Z0-9\-_]+$",
-        description="Project name (alphanumeric, hyphens, underscores)"
+        description="Project name (alphanumeric, hyphens, underscores)",
     )
     project_type: str = Field(..., min_length=3, description="Type of project")
     tech_stack: str = Field(..., min_length=3, description="Technologies to use")

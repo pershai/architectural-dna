@@ -1,7 +1,7 @@
 """Base class for MCP tools."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from qdrant_client import QdrantClient
 
@@ -15,10 +15,7 @@ class BaseTool:
     """Base class for all MCP tools with shared dependencies."""
 
     def __init__(
-            self,
-            qdrant_client: QdrantClient,
-            collection_name: str,
-            config: dict[str, Any]
+        self, qdrant_client: QdrantClient, collection_name: str, config: dict[str, Any]
     ):
         """
         Initialize the base tool.
@@ -34,10 +31,10 @@ class BaseTool:
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Lazy-loaded components
-        self._github_client: Optional[GitHubClient] = None
-        self._llm_analyzer: Optional[LLMAnalyzer] = None
-        self._pattern_extractor: Optional[PatternExtractor] = None
-        self._scaffolder: Optional[ProjectScaffolder] = None
+        self._github_client: GitHubClient | None = None
+        self._llm_analyzer: LLMAnalyzer | None = None
+        self._pattern_extractor: PatternExtractor | None = None
+        self._scaffolder: ProjectScaffolder | None = None
 
     def get_github_client(self) -> GitHubClient:
         """Get or create GitHub client with caching configured from config."""
@@ -48,11 +45,17 @@ class BaseTool:
     def get_llm_analyzer(self) -> LLMAnalyzer:
         """Get or create LLM analyzer."""
         if self._llm_analyzer is None:
-            provider = self.config.get("llm", {}).get("provider", "gemini")
+            llm_config = self.config.get("llm", {})
+            provider = llm_config.get("provider", "gemini")
             if provider == "mock":
                 self._llm_analyzer = MockLLMAnalyzer()
             else:
-                self._llm_analyzer = LLMAnalyzer()
+                self._llm_analyzer = LLMAnalyzer(
+                    model=llm_config.get("model"),
+                    max_retries=llm_config.get("max_retries"),
+                    initial_retry_delay=llm_config.get("initial_retry_delay"),
+                    max_retry_delay=llm_config.get("max_retry_delay"),
+                )
         return self._llm_analyzer
 
     def get_pattern_extractor(self) -> PatternExtractor:

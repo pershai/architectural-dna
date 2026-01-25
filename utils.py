@@ -2,12 +2,12 @@
 
 import json
 import logging
-from typing import Optional, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_json_from_llm_response(response_text: str) -> Optional[dict[str, Any]]:
+def parse_json_from_llm_response(response_text: str) -> dict[str, Any] | None:
     """
     Parse JSON from LLM response, handling markdown code blocks.
 
@@ -35,9 +35,7 @@ def parse_json_from_llm_response(response_text: str) -> Optional[dict[str, Any]]
             if len(parts) >= 2:
                 text = parts[1]
                 # Remove language identifier if present (e.g., "json")
-                if text.startswith("json"):
-                    text = text[4:]
-                elif text.startswith("JSON"):
+                if text.startswith("json") or text.startswith("JSON"):
                     text = text[4:]
 
         # Remove closing code fence if still present
