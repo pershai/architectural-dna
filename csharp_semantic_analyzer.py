@@ -18,6 +18,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 
 from models import Language, PatternCategory
+from csharp_constants import CSHARP_CONSTANTS, SQL_LIBRARIES
 from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
 from csharp_constants import CSHARP_CONSTANTS
 
@@ -350,7 +351,7 @@ class CSharpSemanticAnalyzer:
         for match in using_pattern.finditer(content):
             namespace = match.group(1)
             # Check against comprehensive list of SQL libraries
-            if any(sql_lib in namespace for sql_lib in CSHARP_CONSTANTS.SQL_LIBRARIES):
+            if any(sql_lib in namespace for sql_lib in SQL_LIBRARIES):
                 dependencies.add(f"__SQL__{namespace}")
 
         return dependencies

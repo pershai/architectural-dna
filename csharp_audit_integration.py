@@ -250,11 +250,11 @@ class CSharpArchitecturalAuditor:
                 continue
 
             category_map = {
-                ArchitecturalRole.CONTROLLER: PatternCategory.API,
-                ArchitecturalRole.SERVICE: PatternCategory.BUSINESS_LOGIC,
+                ArchitecturalRole.CONTROLLER: PatternCategory.API_DESIGN,
+                ArchitecturalRole.SERVICE: PatternCategory.UTILITIES,
                 ArchitecturalRole.REPOSITORY: PatternCategory.DATA_ACCESS,
                 ArchitecturalRole.DOMAIN_ENTITY: PatternCategory.ARCHITECTURE,
-                ArchitecturalRole.HANDLER: PatternCategory.BUSINESS_LOGIC,
+                ArchitecturalRole.HANDLER: PatternCategory.UTILITIES,
                 ArchitecturalRole.MIDDLEWARE: PatternCategory.ARCHITECTURE,
             }
 
