@@ -397,9 +397,26 @@ class CSharpSemanticAnalyzer:
 
         return members
 
+    def _normalize_field_name(self, field_name: str) -> str:
+        """Normalize field name by removing common prefixes."""
+        normalized = field_name.lstrip('_')
+        return normalized
+
+    def _field_accessed_in_region(self, field_name: str, region: str) -> bool:
+        """Check if field is accessed in code region with normalization."""
+        normalized_field = self._normalize_field_name(field_name)
+
+        patterns = [
+            rf'\b{re.escape(field_name)}\b',
+            rf'\bthis\.{re.escape(field_name)}\b',
+            rf'\b{re.escape(normalized_field)}\b',
+            rf'\bthis\.{re.escape(normalized_field)}\b',
+        ]
+
+        return any(re.search(pattern, region) for pattern in patterns)
+
     def calculate_lcom(self, members: List[CSharpMember], content: str) -> float:
         """Calculate Lack of Cohesion in Methods (LCOM4)."""
-        # Validate inputs to prevent runtime errors
         if not content or not content.strip():
             logger.warning("Empty content provided to calculate_lcom")
             return 0.0
@@ -415,19 +432,16 @@ class CSharpSemanticAnalyzer:
 
         total_accesses = 0
         for method in methods:
-            # Use C# method pattern instead of Python 'def' keyword
-            method_pattern = rf'(?:public|private|protected|internal)\s+.*\s+{re.escape(method.name)}\s*\('
+            method_pattern = rf'(?:public|private|protected|internal)?\s*(?:async\s+)?(?:Task<?)?\w+>?\s+{re.escape(method.name)}\s*\('
             method_match = re.search(method_pattern, content)
 
             if method_match:
                 method_start = method_match.start()
-                # Find method end by counting braces
                 method_end = self._find_method_end(content, method_start)
                 method_region = content[method_start:method_end]
 
-                # Check if this method accesses each field
                 for field in fields:
-                    if re.search(rf'\b{re.escape(field.name)}\b', method_region):
+                    if self._field_accessed_in_region(field.name, method_region):
                         total_accesses += 1
                         method.accessed_members.add(field.name)
 
@@ -439,12 +453,60 @@ class CSharpSemanticAnalyzer:
         return round(lcom, 3)
 
     def _find_method_end(self, content: str, start: int) -> int:
-        """Find the end of a C# method by counting braces."""
+        """Find the end of a C# method by counting braces, ignoring strings and comments."""
         brace_count = 0
         in_method = False
         i = start
 
         while i < len(content):
+            # Skip single-line comments
+            if i < len(content) - 1 and content[i:i+2] == '//':
+                while i < len(content) and content[i] != '\n':
+                    i += 1
+                continue
+
+            # Skip multi-line comments
+            if i < len(content) - 1 and content[i:i+2] == '/*':
+                i += 2
+                while i < len(content) - 1:
+                    if content[i:i+2] == '*/':
+                        i += 2
+                        break
+                    i += 1
+                continue
+
+            # Skip string literals (regular and verbatim)
+            if content[i] == '"':
+                # Check for verbatim string @"..."
+                is_verbatim = i > 0 and content[i-1] == '@'
+                i += 1
+                while i < len(content):
+                    if content[i] == '"':
+                        # Check for escaped quote in verbatim string ("")
+                        if is_verbatim and i < len(content) - 1 and content[i+1] == '"':
+                            i += 2
+                            continue
+                        # Check for escaped quote in regular string (\")
+                        if not is_verbatim and i > 0 and content[i-1] == '\\':
+                            i += 1
+                            continue
+                        i += 1
+                        break
+                    i += 1
+                continue
+
+            # Skip char literals
+            if content[i] == "'":
+                i += 1
+                while i < len(content):
+                    if content[i] == "'":
+                        if i > 0 and content[i-1] != '\\':
+                            i += 1
+                            break
+                    i += 1
+                continue
+
+            # Count braces
             char = content[i]
             if char == '{':
                 brace_count += 1

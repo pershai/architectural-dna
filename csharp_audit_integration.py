@@ -8,7 +8,6 @@ import logging
 import re
 from pathlib import Path
 from typing import List, Dict, Optional
-from dataclasses import asdict
 
 from models import Pattern, PatternCategory, Language, CodeChunk
 from pattern_extractor import PatternExtractor

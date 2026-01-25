@@ -415,19 +415,68 @@ class PatternExtractor:
         return "\n".join(context_lines)
 
     def _find_brace_block_end(self, lines: list[str], start: int) -> int:
-        """Find the end of a brace-delimited block."""
+        """Find the end of a brace-delimited block, ignoring strings and comments."""
         brace_count = 0
         found_opening = False
 
         for i in range(start, len(lines)):
             line = lines[i]
+            j = 0
 
-            for char in line:
-                if char == "{":
+            while j < len(line):
+                # Skip single-line comments
+                if j < len(line) - 1 and line[j:j+2] == '//':
+                    break  # Rest of line is comment
+
+                # Skip multi-line comments
+                if j < len(line) - 1 and line[j:j+2] == '/*':
+                    j += 2
+                    while j < len(line) - 1:
+                        if line[j:j+2] == '*/':
+                            j += 2
+                            break
+                        j += 1
+                    continue
+
+                # Skip string literals (regular and verbatim)
+                if line[j] == '"':
+                    # Check for verbatim string @"..."
+                    is_verbatim = j > 0 and line[j-1] == '@'
+                    j += 1
+                    while j < len(line):
+                        if line[j] == '"':
+                            # Check for escaped quote in verbatim string ("")
+                            if is_verbatim and j < len(line) - 1 and line[j+1] == '"':
+                                j += 2
+                                continue
+                            # Check for escaped quote in regular string (\")
+                            if not is_verbatim and j > 0 and line[j-1] == '\\':
+                                j += 1
+                                continue
+                            j += 1
+                            break
+                        j += 1
+                    continue
+
+                # Skip char literals
+                if line[j] == "'":
+                    j += 1
+                    while j < len(line):
+                        if line[j] == "'":
+                            if j > 0 and line[j-1] != '\\':
+                                j += 1
+                                break
+                        j += 1
+                    continue
+
+                # Count braces
+                if line[j] == "{":
                     brace_count += 1
                     found_opening = True
-                elif char == "}":
+                elif line[j] == "}":
                     brace_count -= 1
+
+                j += 1
 
             if found_opening and brace_count == 0:
                 return i

@@ -20,9 +20,9 @@ class CSharpAnalysisConstants:
     METHOD_REGION_FALLBACK: int = 1000  # Fallback size if brace matching fails
 
     # Pattern detection confidence thresholds
-    PATTERN_CONFIDENCE_HIGH: float = 0.6    # High confidence threshold
-    PATTERN_CONFIDENCE_MEDIUM: float = 0.5  # Medium confidence threshold
-    PATTERN_CONFIDENCE_LOW: float = 0.4     # Low confidence threshold
+    PATTERN_CONFIDENCE_HIGH: float = 0.6
+    PATTERN_CONFIDENCE_MEDIUM: float = 0.5
+    PATTERN_CONFIDENCE_LOW: float = 0.5
 
     # Quality scoring thresholds (referenced from config.yaml, but can be overridden)
     DEFAULT_LCOM_THRESHOLD: float = 0.8
