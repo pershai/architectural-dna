@@ -6,7 +6,7 @@ import pytest
 @pytest.fixture
 def sample_controller_code():
     """Sample C# controller with DI and attributes."""
-    return '''
+    return """
 using System;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
@@ -37,13 +37,13 @@ namespace MyApp.Controllers {
         }
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_service_code():
     """Sample C# service class."""
-    return '''
+    return """
 using System.Threading.Tasks;
 using MyApp.Models;
 using MyApp.Data;
@@ -71,13 +71,13 @@ namespace MyApp.Services {
         }
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_repository_code():
     """Sample C# repository class."""
-    return '''
+    return """
 using System.Threading.Tasks;
 using MyApp.Models;
 using Microsoft.EntityFrameworkCore;
@@ -106,13 +106,13 @@ namespace MyApp.Data {
         }
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_cohesive_class():
     """Sample cohesive class (high LCOM)."""
-    return '''
+    return """
 public class User {
     private string name;
     private string email;
@@ -126,13 +126,13 @@ public class User {
     public string GetEmail() { return email; }
     public int GetAge() { return age; }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_god_object():
     """Sample God Object with low cohesion (LCOM > 0.8)."""
-    return '''
+    return """
 public class UserService {
     // User management
     public void CreateUser(string name) { }
@@ -159,13 +159,13 @@ public class UserService {
     private void LogError(string error) { }
     private void LogWarning(string warning) { }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_async_issue():
     """Sample code with async-over-sync anti-pattern."""
-    return '''
+    return """
 public class UserService {
     private readonly IMediator mediator;
 
@@ -190,13 +190,13 @@ public class UserService {
         await Task.Delay(100);
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_di_program_cs():
     """Sample Program.cs with DI registrations."""
-    return '''
+    return """
 using Microsoft.Extensions.DependencyInjection;
 using MyApp.Services;
 using MyApp.Data;
@@ -211,7 +211,7 @@ builder.Services.AddMediatR(typeof(Program));
 var app = builder.Build();
 app.MapControllers();
 app.Run();
-'''
+"""
 
 
 @pytest.fixture
@@ -220,14 +220,14 @@ def sample_cyclic_dependency_code():
     return {
         "A": "public class A { private B b; }",
         "B": "public class B { private C c; }",
-        "C": "public class C { private A a; }"  # Creates cycle: A → B → C → A
+        "C": "public class C { private A a; }",  # Creates cycle: A → B → C → A
     }
 
 
 @pytest.fixture
 def sample_sql_access_code():
     """Sample code with direct SQL access in wrong layer."""
-    return '''
+    return """
 using Microsoft.Data.SqlClient;
 
 namespace MyApp.Controllers {
@@ -246,36 +246,36 @@ namespace MyApp.Controllers {
         }
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_partial_class():
     """Sample partial class (should be aggregated)."""
     return [
-        '''
+        """
 namespace MyApp.Models {
     public partial class User {
         public int Id { get; set; }
         public string Name { get; set; }
     }
 }
-''',
-        '''
+""",
+        """
 namespace MyApp.Models {
     public partial class User {
         public string Email { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 }
-'''
+""",
     ]
 
 
 @pytest.fixture
 def sample_mediatr_handler():
     """Sample MediatR handler (should depend only on Domain)."""
-    return '''
+    return """
 using MediatR;
 using MyApp.Domain;
 
@@ -293,13 +293,13 @@ namespace MyApp.Handlers {
         }
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_singleton_code():
     """Sample code with Singleton pattern."""
-    return '''
+    return """
 public class DatabaseConnection {
     private static readonly DatabaseConnection instance = new();
 
@@ -309,13 +309,13 @@ public class DatabaseConnection {
 
     public void Connect() { }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_factory_code():
     """Sample code with Factory pattern."""
-    return '''
+    return """
 public class DataAccessFactory {
     public static IDataAccess Create(string type) {
         return type switch {
@@ -325,13 +325,13 @@ public class DataAccessFactory {
         };
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def sample_builder_code():
     """Sample code with Builder pattern."""
-    return '''
+    return """
 public class QueryBuilder {
     private string _from;
     private string _where;
@@ -350,11 +350,12 @@ public class QueryBuilder {
         return $"SELECT * FROM {_from} WHERE {_where}";
     }
 }
-'''
+"""
 
 
 @pytest.fixture
 def detector():
     """Create CSharpPatternDetector instance."""
     from csharp_pattern_detector import CSharpPatternDetector
+
     return CSharpPatternDetector()

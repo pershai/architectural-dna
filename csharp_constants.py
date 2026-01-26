@@ -13,10 +13,10 @@ class CSharpAnalysisConstants:
 
     # Attribute extraction
     ATTRIBUTE_SEARCH_LINES_BEFORE: int = 10  # Lines to search before class/method
-    ATTRIBUTE_SEARCH_LINES_AFTER: int = 5    # Lines to search after class/method
+    ATTRIBUTE_SEARCH_LINES_AFTER: int = 5  # Lines to search after class/method
 
     # LCOM calculation
-    METHOD_REGION_SIZE: int = 500      # Characters to examine per method
+    METHOD_REGION_SIZE: int = 500  # Characters to examine per method
     METHOD_REGION_FALLBACK: int = 1000  # Fallback size if brace matching fails
 
     # Pattern detection confidence thresholds
@@ -55,19 +55,19 @@ class CSharpAnalysisConstants:
 
 # SQL libraries and data access frameworks to detect
 SQL_LIBRARIES = [
-    'SqlClient',          # Microsoft.Data.SqlClient, System.Data.SqlClient
-    'Dapper',             # Dapper micro-ORM
-    'NHibernate',         # NHibernate ORM
-    'EntityFramework',    # Legacy EF
-    'MySql.Data',         # MySQL Connector
-    'Npgsql',             # PostgreSQL driver
-    'Oracle.ManagedDataAccess',  # Oracle driver
-    'MongoDB.Driver',     # MongoDB driver
-    'System.Data.Odbc',   # ODBC data access
-    'System.Data.OleDb',  # OLE DB data access
-    'StackExchange.Redis', # Redis client
-    'Cassandra',          # Cassandra driver
-    'System.Data.SQLite', # SQLite
+    "SqlClient",  # Microsoft.Data.SqlClient, System.Data.SqlClient
+    "Dapper",  # Dapper micro-ORM
+    "NHibernate",  # NHibernate ORM
+    "EntityFramework",  # Legacy EF
+    "MySql.Data",  # MySQL Connector
+    "Npgsql",  # PostgreSQL driver
+    "Oracle.ManagedDataAccess",  # Oracle driver
+    "MongoDB.Driver",  # MongoDB driver
+    "System.Data.Odbc",  # ODBC data access
+    "System.Data.OleDb",  # OLE DB data access
+    "StackExchange.Redis",  # Redis client
+    "Cassandra",  # Cassandra driver
+    "System.Data.SQLite",  # SQLite
 ]
 
 

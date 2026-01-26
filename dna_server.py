@@ -47,7 +47,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def get_env_or_header(key: str, header_key: str, default: str | None = None) -> str | None:
+def get_env_or_header(
+    key: str, header_key: str, default: str | None = None
+) -> str | None:
     """Get value from environment variable, with header override support.
 
     Priority: Environment variable > Default
@@ -426,9 +428,9 @@ def get_category_stats() -> str:
 
 @mcp.tool()
 def analyze_csharp_project(
-        project_path: str,
-        repo_name: str = "unknown-repo",
-        output_dir: str = "csharp_audit_reports"
+    project_path: str,
+    repo_name: str = "unknown-repo",
+    output_dir: str = "csharp_audit_reports",
 ) -> str:
     """
     Analyze a C# project for architectural violations and patterns.
@@ -470,11 +472,7 @@ def analyze_csharp_project(
 
         # Markdown report
         md_path = Path(output_dir) / f"{repo_name}_audit.md"
-        CSharpAuditReporter.generate_markdown_report(
-            audit_result,
-            types,
-            str(md_path)
-        )
+        CSharpAuditReporter.generate_markdown_report(audit_result, types, str(md_path))
 
         # SARIF report (for IDE integration)
         sarif_path = Path(output_dir) / f"{repo_name}_audit.sarif"
@@ -500,11 +498,7 @@ Reports Generated:"""
 
         summary += "\n\nTop 5 Rules Violated:"
         for i, (rule_id, count) in enumerate(
-            sorted(
-                audit_result.violations_by_rule.items(),
-                key=lambda x: -x[1]
-            )[:5],
-            1
+            sorted(audit_result.violations_by_rule.items(), key=lambda x: -x[1])[:5], 1
         ):
             summary += f"\n  {i}. {rule_id}: {count} violations"
 

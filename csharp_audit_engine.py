@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AuditRule:
     """Represents an architectural audit rule."""
+
     rule_id: str
     name: str
     description: str
@@ -38,6 +39,7 @@ class AuditRule:
 @dataclass
 class AuditResult:
     """Result of an architectural audit."""
+
     total_types: int
     total_violations: int
     violations_by_severity: dict[str, int]
@@ -49,7 +51,9 @@ class AuditResult:
 class CSharpAuditEngine:
     """Advanced architectural audit engine for C# codebases."""
 
-    def __init__(self, analyzer: CSharpSemanticAnalyzer, config_path: str = "config.yaml"):
+    def __init__(
+        self, analyzer: CSharpSemanticAnalyzer, config_path: str = "config.yaml"
+    ):
         if not isinstance(analyzer, CSharpSemanticAnalyzer):
             raise TypeError(
                 f"Expected CSharpSemanticAnalyzer instance, got {type(analyzer)}"
@@ -81,17 +85,14 @@ class CSharpAuditEngine:
             "metrics": {
                 "lcom_threshold": 0.8,
                 "loc_threshold": 500,
-                "cyclomatic_complexity_limit": 15
+                "cyclomatic_complexity_limit": 15,
             },
-            "dependencies": {
-                "max_per_class": 7,
-                "max_per_namespace": 50
-            },
+            "dependencies": {"max_per_class": 7, "max_per_namespace": 50},
             "patterns": {
                 "include_partial_classes": True,
                 "extract_di_registrations": True,
-                "detect_async_patterns": True
-            }
+                "detect_async_patterns": True,
+            },
         }
 
     def _initialize_rules(self):
@@ -105,8 +106,8 @@ class CSharpAuditEngine:
             severity="error",
             configuration={
                 "allowed_roles": ["handler"],
-                "forbidden_dependencies": ["Domain"]
-            }
+                "forbidden_dependencies": ["Domain"],
+            },
         )
 
         self.rules["MEDIATR_002"] = AuditRule(
@@ -116,8 +117,8 @@ class CSharpAuditEngine:
             severity="error",
             configuration={
                 "controller_allowed_dependencies": ["IMediator"],
-                "forbidden_patterns": ["Handler"]
-            }
+                "forbidden_patterns": ["Handler"],
+            },
         )
 
         # Rule 2: No Direct SQL Access
@@ -131,9 +132,9 @@ class CSharpAuditEngine:
                 "forbidden_namespaces": [
                     "Microsoft.Data.SqlClient",
                     "Dapper",
-                    "System.Data.SqlClient"
-                ]
-            }
+                    "System.Data.SqlClient",
+                ],
+            },
         )
 
         # Rule 3: Cyclic Dependencies
@@ -141,7 +142,7 @@ class CSharpAuditEngine:
             rule_id="ARCH_001",
             name="No Cyclic Dependencies",
             description="Namespaces must not have circular references",
-            severity="error"
+            severity="error",
         )
 
         # Rule 4: God Object Detection
@@ -150,10 +151,7 @@ class CSharpAuditEngine:
             name="No God Objects",
             description="Classes should maintain reasonable cohesion (LCOM < 0.8)",
             severity="warning",
-            configuration={
-                "lcom_threshold": 0.8,
-                "loc_threshold": 500
-            }
+            configuration={"lcom_threshold": 0.8, "loc_threshold": 500},
         )
 
         # Rule 5: Async Safety
@@ -161,7 +159,7 @@ class CSharpAuditEngine:
             rule_id="ASYNC_001",
             name="No Async-over-Sync",
             description="Avoid blocking async code with .Result or .Wait()",
-            severity="warning"
+            severity="warning",
         )
 
         # Rule 6: Dependency Direction
@@ -172,7 +170,7 @@ class CSharpAuditEngine:
             severity="error",
             configuration={
                 "layer_hierarchy": ["Domain", "Application", "Infrastructure", "Web"]
-            }
+            },
         )
 
         # Rule 7: Repository Pattern
@@ -180,7 +178,7 @@ class CSharpAuditEngine:
             rule_id="DATA_002",
             name="Repository Interface Usage",
             description="Repositories must implement an interface",
-            severity="warning"
+            severity="warning",
         )
 
         # Rule 8: Attribute Validation
@@ -188,7 +186,7 @@ class CSharpAuditEngine:
             rule_id="ATTR_001",
             name="Controller Attribute Validation",
             description="Controllers must have [ApiController] and [Route] attributes",
-            severity="warning"
+            severity="warning",
         )
 
     def audit_mediatr_pattern(self) -> list[ArchitecturalViolation]:
@@ -201,30 +199,38 @@ class CSharpAuditEngine:
             if type_info.architectural_role == ArchitecturalRole.HANDLER:
                 for dep in type_info.dependencies:
                     dep_type = self.analyzer.types.get(dep)
-                    if dep_type and dep_type.namespace and not any(
-                        layer in dep_type.namespace
-                        for layer in ["Domain", "Handler", "Common"]
+                    if (
+                        dep_type
+                        and dep_type.namespace
+                        and not any(
+                            layer in dep_type.namespace
+                            for layer in ["Domain", "Handler", "Common"]
+                        )
                     ):
-                        violations.append(ArchitecturalViolation(
-                            rule_id=rule1.rule_id,
-                            severity=rule1.severity,
-                            message=f"Handler '{type_name}' depends on '{dep}' from {dep_type.namespace} (should only depend on Domain)",
-                            type_name=type_name,
-                            file_path=type_info.file_path,
-                            suggestion="Handlers should only reference Domain entities and value objects"
-                        ))
+                        violations.append(
+                            ArchitecturalViolation(
+                                rule_id=rule1.rule_id,
+                                severity=rule1.severity,
+                                message=f"Handler '{type_name}' depends on '{dep}' from {dep_type.namespace} (should only depend on Domain)",
+                                type_name=type_name,
+                                file_path=type_info.file_path,
+                                suggestion="Handlers should only reference Domain entities and value objects",
+                            )
+                        )
 
             if type_info.architectural_role == ArchitecturalRole.CONTROLLER:
                 for dep in type_info.dependencies:
                     if "Handler" in dep and dep != "IMediator":
-                        violations.append(ArchitecturalViolation(
-                            rule_id=rule2.rule_id,
-                            severity=rule2.severity,
-                            message=f"Controller '{type_name}' directly depends on '{dep}' (should use IMediator)",
-                            type_name=type_name,
-                            file_path=type_info.file_path,
-                            suggestion="Inject IMediator and send commands/queries instead of calling handlers directly"
-                        ))
+                        violations.append(
+                            ArchitecturalViolation(
+                                rule_id=rule2.rule_id,
+                                severity=rule2.severity,
+                                message=f"Controller '{type_name}' directly depends on '{dep}' (should use IMediator)",
+                                type_name=type_name,
+                                file_path=type_info.file_path,
+                                suggestion="Inject IMediator and send commands/queries instead of calling handlers directly",
+                            )
+                        )
 
         return violations
 
@@ -242,14 +248,16 @@ class CSharpAuditEngine:
             if in_forbidden_layer:
                 for dep in type_info.dependencies:
                     if dep.startswith("__SQL__"):
-                        violations.append(ArchitecturalViolation(
-                            rule_id=rule.rule_id,
-                            severity=rule.severity,
-                            message=f"Type '{type_name}' in {type_info.namespace} directly references {dep.replace('__SQL__', '')}",
-                            type_name=type_name,
-                            file_path=type_info.file_path,
-                            suggestion="Move SQL access to Infrastructure/Repository layer and use interfaces"
-                        ))
+                        violations.append(
+                            ArchitecturalViolation(
+                                rule_id=rule.rule_id,
+                                severity=rule.severity,
+                                message=f"Type '{type_name}' in {type_info.namespace} directly references {dep.replace('__SQL__', '')}",
+                                type_name=type_name,
+                                file_path=type_info.file_path,
+                                suggestion="Move SQL access to Infrastructure/Repository layer and use interfaces",
+                            )
+                        )
 
         return violations
 
@@ -293,14 +301,16 @@ class CSharpAuditEngine:
             if namespace not in visited:
                 cycle = find_cycle(namespace, visited, set(), [])
                 if cycle:
-                    violations.append(ArchitecturalViolation(
-                        rule_id=rule.rule_id,
-                        severity=rule.severity,
-                        message=f"Cyclic dependency detected: {' -> '.join(cycle)}",
-                        type_name=cycle[0],
-                        file_path="Multiple files",
-                        suggestion="Refactor to break the cycle using interfaces or moving shared code"
-                    ))
+                    violations.append(
+                        ArchitecturalViolation(
+                            rule_id=rule.rule_id,
+                            severity=rule.severity,
+                            message=f"Cyclic dependency detected: {' -> '.join(cycle)}",
+                            type_name=cycle[0],
+                            file_path="Multiple files",
+                            suggestion="Refactor to break the cycle using interfaces or moving shared code",
+                        )
+                    )
 
         return violations
 
@@ -326,14 +336,16 @@ class CSharpAuditEngine:
                 reasons.append(f"Too many dependencies ({len(type_info.dependencies)})")
 
             if reasons:
-                violations.append(ArchitecturalViolation(
-                    rule_id=rule.rule_id,
-                    severity=rule.severity,
-                    message=f"'{type_name}' is a potential God Object: {', '.join(reasons)}",
-                    type_name=type_name,
-                    file_path=type_info.file_path,
-                    suggestion="Consider splitting into smaller, focused classes with single responsibilities"
-                ))
+                violations.append(
+                    ArchitecturalViolation(
+                        rule_id=rule.rule_id,
+                        severity=rule.severity,
+                        message=f"'{type_name}' is a potential God Object: {', '.join(reasons)}",
+                        type_name=type_name,
+                        file_path=type_info.file_path,
+                        suggestion="Consider splitting into smaller, focused classes with single responsibilities",
+                    )
+                )
 
         return violations
 
@@ -343,17 +355,19 @@ class CSharpAuditEngine:
         rule = self.rules["ASYNC_001"]
 
         for type_name, type_info in self.analyzer.types.items():
-            if hasattr(type_info, 'async_violations') and type_info.async_violations:
+            if hasattr(type_info, "async_violations") and type_info.async_violations:
                 for line_num, message in type_info.async_violations:
-                    violations.append(ArchitecturalViolation(
-                        rule_id=rule.rule_id,
-                        severity=rule.severity,
-                        message=message,
-                        type_name=type_name,
-                        file_path=type_info.file_path,
-                        line_number=line_num,
-                        suggestion="Use proper async/await instead of .Result, .Wait(), or .GetAwaiter().GetResult()"
-                    ))
+                    violations.append(
+                        ArchitecturalViolation(
+                            rule_id=rule.rule_id,
+                            severity=rule.severity,
+                            message=message,
+                            type_name=type_name,
+                            file_path=type_info.file_path,
+                            line_number=line_num,
+                            suggestion="Use proper async/await instead of .Result, .Wait(), or .GetAwaiter().GetResult()",
+                        )
+                    )
 
         return violations
 
@@ -398,14 +412,16 @@ class CSharpAuditEngine:
 
                 # Check if dependency flows upward (bad)
                 if dep_level > source_level:
-                    violations.append(ArchitecturalViolation(
-                        rule_id=rule.rule_id,
-                        severity=rule.severity,
-                        message=f"'{type_name}' in {source_layer} depends on '{dep_name}' in {dep_layer} (wrong direction)",
-                        type_name=type_name,
-                        file_path=type_info.file_path,
-                        suggestion=f"Dependencies should flow: {' -> '.join(layer_hierarchy)}. Consider using interfaces or moving code."
-                    ))
+                    violations.append(
+                        ArchitecturalViolation(
+                            rule_id=rule.rule_id,
+                            severity=rule.severity,
+                            message=f"'{type_name}' in {source_layer} depends on '{dep_name}' in {dep_layer} (wrong direction)",
+                            type_name=type_name,
+                            file_path=type_info.file_path,
+                            suggestion=f"Dependencies should flow: {' -> '.join(layer_hierarchy)}. Consider using interfaces or moving code.",
+                        )
+                    )
 
         return violations
 
@@ -420,14 +436,16 @@ class CSharpAuditEngine:
                 interface_name = f"I{type_name}"
 
                 if interface_name not in self.analyzer.types:
-                    violations.append(ArchitecturalViolation(
-                        rule_id=rule.rule_id,
-                        severity=rule.severity,
-                        message=f"Repository '{type_name}' does not have a corresponding interface",
-                        type_name=type_name,
-                        file_path=type_info.file_path,
-                        suggestion=f"Create interface '{interface_name}' and inject via DI"
-                    ))
+                    violations.append(
+                        ArchitecturalViolation(
+                            rule_id=rule.rule_id,
+                            severity=rule.severity,
+                            message=f"Repository '{type_name}' does not have a corresponding interface",
+                            type_name=type_name,
+                            file_path=type_info.file_path,
+                            suggestion=f"Create interface '{interface_name}' and inject via DI",
+                        )
+                    )
 
         return violations
 
@@ -444,14 +462,16 @@ class CSharpAuditEngine:
 
                 for required in required_attributes:
                     if not any(required in attr for attr in attr_names):
-                        violations.append(ArchitecturalViolation(
-                            rule_id=rule.rule_id,
-                            severity=rule.severity,
-                            message=f"Controller '{type_name}' is missing [{required}] attribute",
-                            type_name=type_name,
-                            file_path=type_info.file_path,
-                            suggestion=f"Add [{required}] attribute to the controller"
-                        ))
+                        violations.append(
+                            ArchitecturalViolation(
+                                rule_id=rule.rule_id,
+                                severity=rule.severity,
+                                message=f"Controller '{type_name}' is missing [{required}] attribute",
+                                type_name=type_name,
+                                file_path=type_info.file_path,
+                                suggestion=f"Add [{required}] attribute to the controller",
+                            )
+                        )
 
         return violations
 
@@ -487,10 +507,20 @@ class CSharpAuditEngine:
         types_by_role_dict: defaultdict[str, int] = defaultdict(int)
         metrics: dict[str, int | float | defaultdict[str, int]] = {
             "total_types": types_by_count,
-            "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
-            "avg_dependencies": sum(len(t.dependencies) for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
+            "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values())
+            / types_by_count
+            if types_by_count
+            else 0,
+            "avg_dependencies": sum(
+                len(t.dependencies) for t in self.analyzer.types.values()
+            )
+            / types_by_count
+            if types_by_count
+            else 0,
             "types_by_role": types_by_role_dict,
-            "namespaces_analyzed": len({t.namespace for t in self.analyzer.types.values()}),
+            "namespaces_analyzed": len(
+                {t.namespace for t in self.analyzer.types.values()}
+            ),
         }
 
         for type_info in self.analyzer.types.values():
@@ -502,5 +532,5 @@ class CSharpAuditEngine:
             violations_by_severity=dict(violations_by_severity),
             violations_by_rule=dict(violations_by_rule),
             violations=all_violations,
-            metrics=metrics
+            metrics=metrics,
         )

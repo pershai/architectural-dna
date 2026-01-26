@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class ArchitecturalRole(str, Enum):
     """Architectural roles derived from attributes and patterns."""
+
     CONTROLLER = "controller"
     SERVICE = "service"
     REPOSITORY = "repository"
@@ -40,6 +41,7 @@ class ArchitecturalRole(str, Enum):
 @dataclass
 class CSharpAttribute:
     """Represents a C# attribute."""
+
     name: str
     arguments: list[str] = field(default_factory=list)
     location: str | None = None
@@ -48,6 +50,7 @@ class CSharpAttribute:
 @dataclass
 class CSharpMember:
     """Represents a class member (field, property, method)."""
+
     name: str
     member_type: str  # "field", "property", "method"
     return_type: str | None = None
@@ -58,6 +61,7 @@ class CSharpMember:
 @dataclass
 class DIRegistration:
     """Represents a dependency injection registration."""
+
     interface_type: str
     implementation_type: str
     lifetime: str  # "Transient", "Scoped", "Singleton"
@@ -67,6 +71,7 @@ class DIRegistration:
 @dataclass
 class CSharpTypeInfo:
     """Extended type information for architectural analysis."""
+
     name: str
     namespace: str
     file_path: str
@@ -78,7 +83,7 @@ class CSharpTypeInfo:
 
     # Dependencies
     dependencies: set[str] = field(default_factory=set)  # Types this depends on
-    dependents: set[str] = field(default_factory=set)   # Types that depend on this
+    dependents: set[str] = field(default_factory=set)  # Types that depend on this
 
     # Members for cohesion analysis
     members: list[CSharpMember] = field(default_factory=list)
@@ -96,12 +101,15 @@ class CSharpTypeInfo:
     async_violations: list[tuple[int, str]] = field(default_factory=list)
 
     # Detected design patterns
-    design_patterns: list[dict] = field(default_factory=list)  # List of {pattern, confidence, indicators}
+    design_patterns: list[dict] = field(
+        default_factory=list
+    )  # List of {pattern, confidence, indicators}
 
 
 @dataclass
 class ArchitecturalViolation:
     """Represents an architectural rule violation."""
+
     rule_id: str
     severity: str  # "error", "warning", "info"
     message: str
@@ -113,64 +121,58 @@ class ArchitecturalViolation:
 
 class MetricsConfig(BaseModel):
     """Validated configuration for code metrics thresholds."""
+
     lcom_threshold: float = Field(
         default=0.8,
         ge=0.0,
         le=1.0,
-        description="LCOM threshold for God Object detection (0.0-1.0)"
+        description="LCOM threshold for God Object detection (0.0-1.0)",
     )
     loc_threshold: int = Field(
         default=500,
         gt=0,
         le=10000,
-        description="Lines of code threshold for large classes"
+        description="Lines of code threshold for large classes",
     )
     cyclomatic_complexity_limit: int = Field(
-        default=15,
-        gt=0,
-        le=100,
-        description="Maximum cyclomatic complexity per method"
+        default=15, gt=0, le=100, description="Maximum cyclomatic complexity per method"
     )
 
 
 class DependenciesConfig(BaseModel):
     """Validated configuration for dependency limits."""
+
     max_per_class: int = Field(
-        default=7,
-        gt=0,
-        le=50,
-        description="Maximum dependencies per class"
+        default=7, gt=0, le=50, description="Maximum dependencies per class"
     )
     max_per_namespace: int = Field(
         default=50,
         gt=0,
         le=500,
-        description="Maximum external dependencies per namespace"
+        description="Maximum external dependencies per namespace",
     )
 
 
 class PatternsConfig(BaseModel):
     """Validated configuration for pattern detection."""
+
     include_partial_classes: bool = Field(
-        default=True,
-        description="Aggregate partial class declarations"
+        default=True, description="Aggregate partial class declarations"
     )
     extract_di_registrations: bool = Field(
-        default=True,
-        description="Extract DI registrations from Program.cs/Startup.cs"
+        default=True, description="Extract DI registrations from Program.cs/Startup.cs"
     )
     detect_async_patterns: bool = Field(
-        default=True,
-        description="Detect async-over-sync anti-patterns"
+        default=True, description="Detect async-over-sync anti-patterns"
     )
     detect_design_patterns: bool = Field(
-        default=True,
-        description="Detect design patterns (Singleton, Factory, etc.)"
+        default=True, description="Detect design patterns (Singleton, Factory, etc.)"
     )
 
 
 class CSharpAuditConfig(BaseModel):
     """Validated configuration for C# architectural audit."""
+
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
     dependencies: DependenciesConfig = Field(default_factory=DependenciesConfig)
     patterns: PatternsConfig = Field(default_factory=PatternsConfig)
@@ -182,29 +184,22 @@ class CSharpSemanticAnalyzer:
     # Attribute patterns for role detection
     ROLE_ATTRIBUTES = {
         ArchitecturalRole.CONTROLLER: [
-            r"ApiController", r"Controller", r"RouteAttribute"
+            r"ApiController",
+            r"Controller",
+            r"RouteAttribute",
         ],
-        ArchitecturalRole.SERVICE: [
-            r"Service", r"Injectable", r"Transient", r"Scoped"
-        ],
-        ArchitecturalRole.REPOSITORY: [
-            r"Repository", r"DataAccess"
-        ],
-        ArchitecturalRole.DOMAIN_ENTITY: [
-            r"Entity", r"DomainEntity", r"Aggregate"
-        ],
-        ArchitecturalRole.VALUE_OBJECT: [
-            r"ValueObject", r"Immutable"
-        ],
+        ArchitecturalRole.SERVICE: [r"Service", r"Injectable", r"Transient", r"Scoped"],
+        ArchitecturalRole.REPOSITORY: [r"Repository", r"DataAccess"],
+        ArchitecturalRole.DOMAIN_ENTITY: [r"Entity", r"DomainEntity", r"Aggregate"],
+        ArchitecturalRole.VALUE_OBJECT: [r"ValueObject", r"Immutable"],
         ArchitecturalRole.HANDLER: [
-            r"Handler", r"RequestHandler", r"CommandHandler", r"QueryHandler"
+            r"Handler",
+            r"RequestHandler",
+            r"CommandHandler",
+            r"QueryHandler",
         ],
-        ArchitecturalRole.VALIDATOR: [
-            r"Validator", r"FluentValidation"
-        ],
-        ArchitecturalRole.MIDDLEWARE: [
-            r"Middleware"
-        ]
+        ArchitecturalRole.VALIDATOR: [r"Validator", r"FluentValidation"],
+        ArchitecturalRole.MIDDLEWARE: [r"Middleware"],
     }
 
     def __init__(self, config_path: str = "config.yaml"):
@@ -245,39 +240,46 @@ class CSharpSemanticAnalyzer:
         # Return validated defaults if config loading fails
         return CSharpAuditConfig().model_dump()
 
-    def extract_attributes(self, content: str, start_line: int) -> list[CSharpAttribute]:
+    def extract_attributes(
+        self, content: str, start_line: int
+    ) -> list[CSharpAttribute]:
         """Extract C# attributes from code."""
         attributes = []
         lines = content.split("\n")
-        attr_pattern = re.compile(r'^\s*\[(\w+)(?:\(([^]]*)\))?\]')
+        attr_pattern = re.compile(r"^\s*\[(\w+)(?:\(([^]]*)\))?\]")
 
-        search_start = max(0, start_line - CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_BEFORE)
-        search_end = min(len(lines), start_line + CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_AFTER)
+        search_start = max(
+            0, start_line - CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_BEFORE
+        )
+        search_end = min(
+            len(lines), start_line + CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_AFTER
+        )
 
         for i in range(search_start, search_end):
             match = attr_pattern.match(lines[i])
             if match:
                 attr_name = match.group(1)
-                attr_args = match.group(2).split(',') if match.group(2) else []
-                attributes.append(CSharpAttribute(
-                    name=attr_name,
-                    arguments=[arg.strip() for arg in attr_args],
-                    location=f"line {i+1}"
-                ))
+                attr_args = match.group(2).split(",") if match.group(2) else []
+                attributes.append(
+                    CSharpAttribute(
+                        name=attr_name,
+                        arguments=[arg.strip() for arg in attr_args],
+                        location=f"line {i + 1}",
+                    )
+                )
 
         return attributes
 
     def determine_architectural_role(
-        self,
-        attributes: list[CSharpAttribute],
-        type_name: str,
-        base_types: list[str]
+        self, attributes: list[CSharpAttribute], type_name: str, base_types: list[str]
     ) -> ArchitecturalRole:
         """Determine architectural role based on attributes and conventions."""
         # Check attributes first
         for attr in attributes:
             for role, patterns in self.ROLE_ATTRIBUTES.items():
-                if any(re.search(pattern, attr.name, re.IGNORECASE) for pattern in patterns):
+                if any(
+                    re.search(pattern, attr.name, re.IGNORECASE) for pattern in patterns
+                ):
                     return role
 
         # Check naming conventions
@@ -301,13 +303,15 @@ class CSharpSemanticAnalyzer:
 
         return ArchitecturalRole.UNKNOWN
 
-    def extract_di_registrations(self, program_cs_content: str, file_path: str) -> list[DIRegistration]:
+    def extract_di_registrations(
+        self, program_cs_content: str, file_path: str
+    ) -> list[DIRegistration]:
         """Extract dependency injection registrations from Program.cs or Startup.cs."""
         registrations = []
         patterns = [
-            r'Add(Transient|Scoped|Singleton)<(\w+),\s*(\w+)>\(',
-            r'Add(Transient|Scoped|Singleton)<(\w+)>\([^)]*new\s+(\w+)',
-            r'Add(Transient|Scoped|Singleton)\(typeof\((\w+)\),\s*typeof\((\w+)\)',
+            r"Add(Transient|Scoped|Singleton)<(\w+),\s*(\w+)>\(",
+            r"Add(Transient|Scoped|Singleton)<(\w+)>\([^)]*new\s+(\w+)",
+            r"Add(Transient|Scoped|Singleton)\(typeof\((\w+)\),\s*typeof\((\w+)\)",
         ]
 
         for i, line in enumerate(program_cs_content.split("\n"), 1):
@@ -318,12 +322,14 @@ class CSharpSemanticAnalyzer:
                     interface_type = match.group(2)
                     impl_type = match.group(3)
 
-                    registrations.append(DIRegistration(
-                        interface_type=interface_type,
-                        implementation_type=impl_type,
-                        lifetime=lifetime,
-                        location=f"{file_path}:{i}"
-                    ))
+                    registrations.append(
+                        DIRegistration(
+                            interface_type=interface_type,
+                            implementation_type=impl_type,
+                            lifetime=lifetime,
+                            location=f"{file_path}:{i}",
+                        )
+                    )
 
         self.di_registrations.extend(registrations)
         return registrations
@@ -332,20 +338,28 @@ class CSharpSemanticAnalyzer:
         """Extract type dependencies from C# code."""
         dependencies = set()
 
-        field_pattern = re.compile(r'(?:private|public|protected|internal)\s+(?:readonly\s+)?(\w+(?:<\w+>)?)\s+\w+')
+        field_pattern = re.compile(
+            r"(?:private|public|protected|internal)\s+(?:readonly\s+)?(\w+(?:<\w+>)?)\s+\w+"
+        )
         for match in field_pattern.finditer(content):
-            dep_type = re.sub(r'<.*?>', '', match.group(1))
+            dep_type = re.sub(r"<.*?>", "", match.group(1))
             if dep_type and dep_type[0].isupper():
                 dependencies.add(dep_type)
 
-        method_pattern = re.compile(r'(?:public|private|protected|internal)\s+(?:async\s+)?(?:Task<)?(\w+)>?\s+\w+\([^)]*\)')
+        method_pattern = re.compile(
+            r"(?:public|private|protected|internal)\s+(?:async\s+)?(?:Task<)?(\w+)>?\s+\w+\([^)]*\)"
+        )
         for match in method_pattern.finditer(content):
             return_type = match.group(1)
-            if return_type and return_type[0].isupper() and return_type not in ['Task', 'void']:
+            if (
+                return_type
+                and return_type[0].isupper()
+                and return_type not in ["Task", "void"]
+            ):
                 dependencies.add(return_type)
 
         # Detect SQL and data access library usage
-        using_pattern = re.compile(r'using\s+([\w.]+);')
+        using_pattern = re.compile(r"using\s+([\w.]+);")
         for match in using_pattern.finditer(content):
             namespace = match.group(1)
             # Check against comprehensive list of SQL libraries
@@ -359,46 +373,52 @@ class CSharpSemanticAnalyzer:
         members = []
 
         field_pattern = re.compile(
-            r'(?:private|public|protected|internal)\s+(?:readonly\s+)?(?:static\s+)?(\w+)\s+(\w+)\s*[;=]',
-            re.MULTILINE
+            r"(?:private|public|protected|internal)\s+(?:readonly\s+)?(?:static\s+)?(\w+)\s+(\w+)\s*[;=]",
+            re.MULTILINE,
         )
         for match in field_pattern.finditer(content):
-            members.append(CSharpMember(
-                name=match.group(2),
-                member_type="field",
-                return_type=match.group(1),
-                is_static='static' in match.group(0)
-            ))
+            members.append(
+                CSharpMember(
+                    name=match.group(2),
+                    member_type="field",
+                    return_type=match.group(1),
+                    is_static="static" in match.group(0),
+                )
+            )
 
         property_pattern = re.compile(
-            r'(?:public|private|protected|internal)\s+(?:static\s+)?(\w+)\s+(\w+)\s*\{',
-            re.MULTILINE
+            r"(?:public|private|protected|internal)\s+(?:static\s+)?(\w+)\s+(\w+)\s*\{",
+            re.MULTILINE,
         )
         for match in property_pattern.finditer(content):
-            members.append(CSharpMember(
-                name=match.group(2),
-                member_type="property",
-                return_type=match.group(1),
-                is_static='static' in match.group(0)
-            ))
+            members.append(
+                CSharpMember(
+                    name=match.group(2),
+                    member_type="property",
+                    return_type=match.group(1),
+                    is_static="static" in match.group(0),
+                )
+            )
 
         method_pattern = re.compile(
-            r'(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:Task<)?(\w+)>?\s+(\w+)\s*\(',
-            re.MULTILINE
+            r"(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:Task<)?(\w+)>?\s+(\w+)\s*\(",
+            re.MULTILINE,
         )
         for match in method_pattern.finditer(content):
-            members.append(CSharpMember(
-                name=match.group(2),
-                member_type="method",
-                return_type=match.group(1),
-                is_static='static' in match.group(0)
-            ))
+            members.append(
+                CSharpMember(
+                    name=match.group(2),
+                    member_type="method",
+                    return_type=match.group(1),
+                    is_static="static" in match.group(0),
+                )
+            )
 
         return members
 
     def _normalize_field_name(self, field_name: str) -> str:
         """Normalize field name by removing common prefixes."""
-        normalized = field_name.lstrip('_')
+        normalized = field_name.lstrip("_")
         return normalized
 
     def _field_accessed_in_region(self, field_name: str, region: str) -> bool:
@@ -406,10 +426,10 @@ class CSharpSemanticAnalyzer:
         normalized_field = self._normalize_field_name(field_name)
 
         patterns = [
-            rf'\b{re.escape(field_name)}\b',
-            rf'\bthis\.{re.escape(field_name)}\b',
-            rf'\b{re.escape(normalized_field)}\b',
-            rf'\bthis\.{re.escape(normalized_field)}\b',
+            rf"\b{re.escape(field_name)}\b",
+            rf"\bthis\.{re.escape(field_name)}\b",
+            rf"\b{re.escape(normalized_field)}\b",
+            rf"\bthis\.{re.escape(normalized_field)}\b",
         ]
 
         return any(re.search(pattern, region) for pattern in patterns)
@@ -424,14 +444,18 @@ class CSharpSemanticAnalyzer:
             return 0.0
 
         methods = [m for m in members if m.member_type == "method" and not m.is_static]
-        fields = [m for m in members if m.member_type in ("field", "property") and not m.is_static]
+        fields = [
+            m
+            for m in members
+            if m.member_type in ("field", "property") and not m.is_static
+        ]
 
         if not methods or not fields:
             return 0.0
 
         total_accesses = 0
         for method in methods:
-            method_pattern = rf'(?:public|private|protected|internal)?\s*(?:async\s+)?(?:Task<?)?\w+>?\s+{re.escape(method.name)}\s*\('
+            method_pattern = rf"(?:public|private|protected|internal)?\s*(?:async\s+)?(?:Task<?)?\w+>?\s+{re.escape(method.name)}\s*\("
             method_match = re.search(method_pattern, content)
 
             if method_match:
@@ -459,16 +483,16 @@ class CSharpSemanticAnalyzer:
 
         while i < len(content):
             # Skip single-line comments
-            if i < len(content) - 1 and content[i:i+2] == '//':
-                while i < len(content) and content[i] != '\n':
+            if i < len(content) - 1 and content[i : i + 2] == "//":
+                while i < len(content) and content[i] != "\n":
                     i += 1
                 continue
 
             # Skip multi-line comments
-            if i < len(content) - 1 and content[i:i+2] == '/*':
+            if i < len(content) - 1 and content[i : i + 2] == "/*":
                 i += 2
                 while i < len(content) - 1:
-                    if content[i:i+2] == '*/':
+                    if content[i : i + 2] == "*/":
                         i += 2
                         break
                     i += 1
@@ -477,16 +501,20 @@ class CSharpSemanticAnalyzer:
             # Skip string literals (regular and verbatim)
             if content[i] == '"':
                 # Check for verbatim string @"..."
-                is_verbatim = i > 0 and content[i-1] == '@'
+                is_verbatim = i > 0 and content[i - 1] == "@"
                 i += 1
                 while i < len(content):
                     if content[i] == '"':
                         # Check for escaped quote in verbatim string ("")
-                        if is_verbatim and i < len(content) - 1 and content[i+1] == '"':
+                        if (
+                            is_verbatim
+                            and i < len(content) - 1
+                            and content[i + 1] == '"'
+                        ):
                             i += 2
                             continue
                         # Check for escaped quote in regular string (\")
-                        if not is_verbatim and i > 0 and content[i-1] == '\\':
+                        if not is_verbatim and i > 0 and content[i - 1] == "\\":
                             i += 1
                             continue
                         i += 1
@@ -498,7 +526,7 @@ class CSharpSemanticAnalyzer:
             if content[i] == "'":
                 i += 1
                 while i < len(content):
-                    if content[i] == "'" and (i == 0 or content[i-1] != '\\'):
+                    if content[i] == "'" and (i == 0 or content[i - 1] != "\\"):
                         i += 1
                         break
                     i += 1
@@ -506,10 +534,10 @@ class CSharpSemanticAnalyzer:
 
             # Count braces
             char = content[i]
-            if char == '{':
+            if char == "{":
                 brace_count += 1
                 in_method = True
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if in_method and brace_count == 0:
                     return i + 1
@@ -525,35 +553,37 @@ class CSharpSemanticAnalyzer:
         Uses iterative approach to safely remove comments and strings.
         """
         # Remove single-line comments
-        content_no_comments = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
+        content_no_comments = re.sub(r"//.*?$", "", content, flags=re.MULTILINE)
 
         # Remove multi-line comments iteratively to avoid greedy matching issues
         # This prevents accidentally removing code between separate comment blocks
         max_iterations = 100  # Safety limit to prevent infinite loops
         iteration = 0
         while iteration < max_iterations:
-            new_content = re.sub(r'/\*.*?\*/', '', content_no_comments, count=1, flags=re.DOTALL)
+            new_content = re.sub(
+                r"/\*.*?\*/", "", content_no_comments, count=1, flags=re.DOTALL
+            )
             if new_content == content_no_comments:
                 break  # No more comments found
             content_no_comments = new_content
             iteration += 1
 
         # Remove string literals (including verbatim strings @"...") to avoid false matches
-        content_cleaned = re.sub(r'@?"(?:[^"\\]|\\.)*"', '', content_no_comments)
-        content_cleaned = re.sub(r"@?'(?:[^'\\]|\\.)*'", '', content_cleaned)
+        content_cleaned = re.sub(r'@?"(?:[^"\\]|\\.)*"', "", content_no_comments)
+        content_cleaned = re.sub(r"@?'(?:[^'\\]|\\.)*'", "", content_cleaned)
 
         # Count decision points with word boundaries
         decision_patterns = [
-            r'\bif\b',
-            r'\belse\s+if\b',  # Count else-if as separate decision
-            r'\bwhile\b',
-            r'\bfor\b',
-            r'\bforeach\b',
-            r'\bcase\b',  # Each case is a decision point
-            r'\bcatch\b',  # Exception handlers add complexity
-            r'&&',  # Logical AND
-            r'\|\|',  # Logical OR
-            r'\?(?!=)',  # Ternary operator (but not null-coalescing ??)
+            r"\bif\b",
+            r"\belse\s+if\b",  # Count else-if as separate decision
+            r"\bwhile\b",
+            r"\bfor\b",
+            r"\bforeach\b",
+            r"\bcase\b",  # Each case is a decision point
+            r"\bcatch\b",  # Exception handlers add complexity
+            r"&&",  # Logical AND
+            r"\|\|",  # Logical OR
+            r"\?(?!=)",  # Ternary operator (but not null-coalescing ??)
         ]
 
         complexity = 1  # Base complexity
@@ -568,21 +598,33 @@ class CSharpSemanticAnalyzer:
 
         # Anti-patterns that block async code
         blocking_patterns = [
-            (r'\.Result\b', 'Using .Result blocks the thread (async-over-sync)'),
-            (r'\.Wait\(\)', 'Using .Wait() blocks the thread (async-over-sync)'),
-            (r'\.GetAwaiter\(\)\.GetResult\(\)', 'Using GetResult() blocks the thread'),
-            (r'Task\.Run\([^)]*\)\.Wait\(\)', 'Task.Run().Wait() is async-over-sync anti-pattern'),
-            (r'Task\.WaitAll\(', 'Task.WaitAll() blocks the thread, prefer await Task.WhenAll()'),
-            (r'Task\.WaitAny\(', 'Task.WaitAny() blocks the thread, prefer await Task.WhenAny()'),
+            (r"\.Result\b", "Using .Result blocks the thread (async-over-sync)"),
+            (r"\.Wait\(\)", "Using .Wait() blocks the thread (async-over-sync)"),
+            (r"\.GetAwaiter\(\)\.GetResult\(\)", "Using GetResult() blocks the thread"),
+            (
+                r"Task\.Run\([^)]*\)\.Wait\(\)",
+                "Task.Run().Wait() is async-over-sync anti-pattern",
+            ),
+            (
+                r"Task\.WaitAll\(",
+                "Task.WaitAll() blocks the thread, prefer await Task.WhenAll()",
+            ),
+            (
+                r"Task\.WaitAny\(",
+                "Task.WaitAny() blocks the thread, prefer await Task.WhenAny()",
+            ),
         ]
 
         # Best practice violations (warnings, not errors)
         best_practice_patterns = [
-            (r'async\s+void\s+\w+\s*\([^)]*\)', 'async void should only be used for event handlers'),
+            (
+                r"async\s+void\s+\w+\s*\([^)]*\)",
+                "async void should only be used for event handlers",
+            ),
         ]
 
         # CancellationToken check (separate logic for better accuracy)
-        cancellation_token_pattern = r'async\s+Task.*\((?![^)]*CancellationToken)'
+        cancellation_token_pattern = r"async\s+Task.*\((?![^)]*CancellationToken)"
 
         for i, line in enumerate(content.split("\n"), 1):
             # Check blocking patterns
@@ -591,14 +633,19 @@ class CSharpSemanticAnalyzer:
                     violations.append((i, message))
 
             # Check best practices (only for public/internal methods)
-            if re.search(r'^\s*(?:public|internal)\s+async', line):
+            if re.search(r"^\s*(?:public|internal)\s+async", line):
                 for pattern, message in best_practice_patterns:
                     if re.search(pattern, line):
                         violations.append((i, f"Best practice: {message}"))
 
                 # Check CancellationToken for async Task methods
                 if re.search(cancellation_token_pattern, line):
-                    violations.append((i, "Best practice: Async method should accept CancellationToken parameter"))
+                    violations.append(
+                        (
+                            i,
+                            "Best practice: Async method should accept CancellationToken parameter",
+                        )
+                    )
 
         return violations
 
@@ -614,7 +661,11 @@ class CSharpSemanticAnalyzer:
         type_info.dependencies = self.extract_dependencies(content)
 
         # Count lines of code (excluding blanks and comments)
-        lines = [line.strip() for line in content.split("\n") if line.strip() and not line.strip().startswith("//")]
+        lines = [
+            line.strip()
+            for line in content.split("\n")
+            if line.strip() and not line.strip().startswith("//")
+        ]
         type_info.lines_of_code = len(lines)
 
         # Calculate cyclomatic complexity with proper regex to avoid false positives
@@ -623,13 +674,15 @@ class CSharpSemanticAnalyzer:
         # Detect design patterns
         if self.config.get("patterns", {}).get("detect_design_patterns", True):
             try:
-                patterns = self.pattern_detector.detect_patterns(content, type_info.name)
+                patterns = self.pattern_detector.detect_patterns(
+                    content, type_info.name
+                )
                 type_info.design_patterns = [
                     {
                         "pattern": p.pattern.value,
                         "confidence": p.confidence,
                         "indicators": p.indicators,
-                        "description": p.description
+                        "description": p.description,
                     }
                     for p in patterns
                 ]
@@ -644,7 +697,9 @@ class CSharpSemanticAnalyzer:
 
     def calculate_instability(self, namespace: str) -> float:
         """Calculate Instability Index for a namespace (0=stable, 1=unstable)."""
-        types_in_namespace = [t for t in self.types.values() if t.namespace == namespace]
+        types_in_namespace = [
+            t for t in self.types.values() if t.namespace == namespace
+        ]
 
         if not types_in_namespace:
             return 0.0

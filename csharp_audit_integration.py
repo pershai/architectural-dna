@@ -34,20 +34,14 @@ class CSharpArchitecturalAuditor:
         self.audit_engine = CSharpAuditEngine(self.semantic_analyzer)
         self.reporter = CSharpAuditReporter()
 
-    def analyze_csharp_file(
-        self,
-        file_path: str,
-        content: str
-    ) -> list[CSharpTypeInfo]:
+    def analyze_csharp_file(self, file_path: str, content: str) -> list[CSharpTypeInfo]:
         """Analyze a C# file with full semantic enrichment."""
         if not content or not content.strip():
             logger.warning(f"Empty content for file: {file_path}")
             return []
 
         chunks = self.pattern_extractor.extract_chunks(
-            content,
-            file_path,
-            Language.CSHARP
+            content, file_path, Language.CSHARP
         )
 
         types_info = []
@@ -60,25 +54,26 @@ class CSharpArchitecturalAuditor:
                 namespace=namespace,
                 file_path=file_path,
                 type_kind=chunk.chunk_type,
-                lines_of_code=chunk.end_line - chunk.start_line
+                lines_of_code=chunk.end_line - chunk.start_line,
             )
 
             type_info.attributes = self.semantic_analyzer.extract_attributes(
-                content,
-                chunk.start_line
+                content, chunk.start_line
             )
 
             base_types = self._extract_base_types(chunk.content)
-            type_info.architectural_role = self.semantic_analyzer.determine_architectural_role(
-                type_info.attributes,
-                type_info.name,
-                base_types
+            type_info.architectural_role = (
+                self.semantic_analyzer.determine_architectural_role(
+                    type_info.attributes, type_info.name, base_types
+                )
             )
 
             type_info.is_partial = "partial" in chunk.content
             type_info = self.semantic_analyzer.analyze_type(type_info, chunk.content)
 
-            async_violations = self.semantic_analyzer.detect_async_over_sync(chunk.content)
+            async_violations = self.semantic_analyzer.detect_async_over_sync(
+                chunk.content
+            )
             if async_violations:
                 type_info.async_violations = async_violations
                 logger.warning(
@@ -94,7 +89,7 @@ class CSharpArchitecturalAuditor:
         self,
         project_path: str,
         include_patterns: list[str] | None = None,
-        batch_size: int = 100
+        batch_size: int = 100,
     ) -> dict:
         """Analyze an entire C# project or solution.
 
@@ -125,12 +120,13 @@ class CSharpArchitecturalAuditor:
                 "files_analyzed": 0,
                 "types_analyzed": 0,
                 "types": {},
-                "audit_result": None
+                "audit_result": None,
             }
 
         if include_patterns:
             cs_files = [
-                f for f in cs_files
+                f
+                for f in cs_files
                 if any(f.match(pattern) for pattern in include_patterns)
             ]
 
@@ -141,17 +137,19 @@ class CSharpArchitecturalAuditor:
         files_skipped = 0
 
         for i in range(0, len(cs_files), batch_size):
-            batch = cs_files[i:i + batch_size]
+            batch = cs_files[i : i + batch_size]
             batch_num = i // batch_size + 1
             total_batches = (len(cs_files) + batch_size - 1) // batch_size
 
-            logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} files)")
+            logger.info(
+                f"Processing batch {batch_num}/{total_batches} ({len(batch)} files)"
+            )
 
             for cs_file in batch:
                 try:
                     # Try multiple encodings
                     content = None
-                    for encoding in ['utf-8', 'utf-8-sig', 'windows-1252']:
+                    for encoding in ["utf-8", "utf-8-sig", "windows-1252"]:
                         try:
                             content = cs_file.read_text(encoding=encoding)
                             break
@@ -166,8 +164,7 @@ class CSharpArchitecturalAuditor:
                     # Extract DI registrations from entry point files
                     if cs_file.name in ["Program.cs", "Startup.cs"]:
                         self.semantic_analyzer.extract_di_registrations(
-                            content,
-                            str(cs_file)
+                            content, str(cs_file)
                         )
 
                     # Analyze file and register types directly to prevent memory accumulation
@@ -179,7 +176,9 @@ class CSharpArchitecturalAuditor:
                     files_processed += 1
 
                 except Exception as e:
-                    logger.error(f"Unexpected error analyzing {cs_file}: {e}", exc_info=True)
+                    logger.error(
+                        f"Unexpected error analyzing {cs_file}: {e}", exc_info=True
+                    )
                     files_skipped += 1
 
         logger.info(
@@ -201,14 +200,10 @@ class CSharpArchitecturalAuditor:
             "files_skipped": files_skipped,
             "types_analyzed": len(self.semantic_analyzer.types),
             "types": self.semantic_analyzer.types,
-            "audit_result": audit_result
+            "audit_result": audit_result,
         }
 
-    def generate_reports(
-        self,
-        analysis_result: dict,
-        output_dir: str
-    ):
+    def generate_reports(self, analysis_result: dict, output_dir: str):
         """Generate all report formats."""
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
@@ -230,10 +225,7 @@ class CSharpArchitecturalAuditor:
 
         self.reporter.print_console_summary(audit_result)
 
-    def convert_to_dna_patterns(
-        self,
-        types: list[CSharpTypeInfo]
-    ) -> list[Pattern]:
+    def convert_to_dna_patterns(self, types: list[CSharpTypeInfo]) -> list[Pattern]:
         """Convert analyzed types to DNA Pattern format for storage."""
         if not types:
             logger.warning("No types provided to convert_to_dna_patterns")
@@ -258,8 +250,7 @@ class CSharpArchitecturalAuditor:
             }
 
             category = category_map.get(
-                type_info.architectural_role,
-                PatternCategory.OTHER
+                type_info.architectural_role, PatternCategory.OTHER
             )
 
             pattern = Pattern(
@@ -275,8 +266,8 @@ class CSharpArchitecturalAuditor:
                     type_info.architectural_role.value,
                     type_info.type_kind,
                     f"lcom_{type_info.lcom_score:.2f}",
-                    f"deps_{len(type_info.dependencies)}"
-                ]
+                    f"deps_{len(type_info.dependencies)}",
+                ],
             )
 
             patterns.append(pattern)
@@ -292,9 +283,9 @@ class CSharpArchitecturalAuditor:
 
     def _extract_base_types(self, content: str) -> list[str]:
         """Extract base types/interfaces from class declaration."""
-        match = re.search(r':\s*([^{]+)', content)
+        match = re.search(r":\s*([^{]+)", content)
         if match:
-            bases = match.group(1).split(',')
+            bases = match.group(1).split(",")
             return [b.strip() for b in bases]
         return []
 
@@ -302,7 +293,7 @@ class CSharpArchitecturalAuditor:
         """Generate human-readable pattern description."""
         parts = [
             f"A {type_info.type_kind} from the {type_info.namespace} namespace",
-            f"serving as a {type_info.architectural_role.value.replace('_', ' ')}."
+            f"serving as a {type_info.architectural_role.value.replace('_', ' ')}.",
         ]
 
         if type_info.attributes:
@@ -315,9 +306,7 @@ class CSharpArchitecturalAuditor:
         )
 
         if type_info.dependencies:
-            parts.append(
-                f"Depends on {len(type_info.dependencies)} types."
-            )
+            parts.append(f"Depends on {len(type_info.dependencies)} types.")
 
         return " ".join(parts)
 
@@ -355,7 +344,7 @@ class CSharpArchitecturalAuditor:
         repo_name: str,
         github_token: str,
         min_quality_score: int = 5,
-        temp_dir: str = "/tmp/dna_repos"
+        temp_dir: str = "/tmp/dna_repos",
     ) -> dict:
         """
         Sync and analyze C# patterns from GitHub repository.
@@ -380,7 +369,7 @@ class CSharpArchitecturalAuditor:
             # Get repository
             client = GitHubClient(github_token)
             repo = client.get_repository(repo_name)
-            repo_path = repo.clone_url if hasattr(repo, 'clone_url') else None
+            repo_path = repo.clone_url if hasattr(repo, "clone_url") else None
 
             if not repo_path:
                 raise ValueError(f"Could not get clone URL for repository {repo_name}")
@@ -397,8 +386,7 @@ class CSharpArchitecturalAuditor:
 
             # Filter by quality score
             high_quality_patterns = [
-                p for p in patterns
-                if p.quality_score >= min_quality_score
+                p for p in patterns if p.quality_score >= min_quality_score
             ]
 
             logger.info(
@@ -415,7 +403,7 @@ class CSharpArchitecturalAuditor:
                 "high_quality_patterns": len(high_quality_patterns),
                 "patterns": high_quality_patterns,
                 "audit_result": audit_result,
-                "violations": violations
+                "violations": violations,
             }
 
         except Exception as e:

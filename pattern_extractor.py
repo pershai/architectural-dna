@@ -359,7 +359,7 @@ class PatternExtractor:
             if type_match:
                 type_name = type_match.group(1)
                 end_line = self._find_brace_block_end(lines, i)
-                chunk_content = "\n".join(lines[attribute_start:end_line + 1])
+                chunk_content = "\n".join(lines[attribute_start : end_line + 1])
 
                 if self._is_valid_chunk(chunk_content):
                     # Determine chunk type based on keyword
@@ -373,16 +373,18 @@ class PatternExtractor:
                     elif "enum" in stripped:
                         chunk_type = "enum"
 
-                    chunks.append(CodeChunk(
-                        content=chunk_content,
-                        file_path=file_path,
-                        language=Language.CSHARP,
-                        start_line=attribute_start + 1,
-                        end_line=end_line + 1,
-                        chunk_type=chunk_type,
-                        name=type_name,
-                        context=context
-                    ))
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.CSHARP,
+                            start_line=attribute_start + 1,
+                            end_line=end_line + 1,
+                            chunk_type=chunk_type,
+                            name=type_name,
+                            context=context,
+                        )
+                    )
                 i = end_line + 1
                 continue
 
@@ -423,14 +425,14 @@ class PatternExtractor:
 
             while j < len(line):
                 # Skip single-line comments
-                if j < len(line) - 1 and line[j:j+2] == '//':
+                if j < len(line) - 1 and line[j : j + 2] == "//":
                     break  # Rest of line is comment
 
                 # Skip multi-line comments
-                if j < len(line) - 1 and line[j:j+2] == '/*':
+                if j < len(line) - 1 and line[j : j + 2] == "/*":
                     j += 2
                     while j < len(line) - 1:
-                        if line[j:j+2] == '*/':
+                        if line[j : j + 2] == "*/":
                             j += 2
                             break
                         j += 1
@@ -439,16 +441,16 @@ class PatternExtractor:
                 # Skip string literals (regular and verbatim)
                 if line[j] == '"':
                     # Check for verbatim string @"..."
-                    is_verbatim = j > 0 and line[j-1] == '@'
+                    is_verbatim = j > 0 and line[j - 1] == "@"
                     j += 1
                     while j < len(line):
                         if line[j] == '"':
                             # Check for escaped quote in verbatim string ("")
-                            if is_verbatim and j < len(line) - 1 and line[j+1] == '"':
+                            if is_verbatim and j < len(line) - 1 and line[j + 1] == '"':
                                 j += 2
                                 continue
                             # Check for escaped quote in regular string (\")
-                            if not is_verbatim and j > 0 and line[j-1] == '\\':
+                            if not is_verbatim and j > 0 and line[j - 1] == "\\":
                                 j += 1
                                 continue
                             j += 1
@@ -460,7 +462,7 @@ class PatternExtractor:
                 if line[j] == "'":
                     j += 1
                     while j < len(line):
-                        if line[j] == "'" and (j == 0 or line[j-1] != '\\'):
+                        if line[j] == "'" and (j == 0 or line[j - 1] != "\\"):
                             j += 1
                             break
                         j += 1
