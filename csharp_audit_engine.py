@@ -7,19 +7,18 @@ Implements advanced architectural rules for C# projects including:
 - Cyclic dependency detection
 """
 
-import re
 import logging
-import yaml
-from pathlib import Path
-from typing import List, Dict, Set, Optional, Any
-from dataclasses import dataclass, field
 from collections import defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 from csharp_semantic_analyzer import (
-    CSharpSemanticAnalyzer,
-    CSharpTypeInfo,
+    ArchitecturalRole,
     ArchitecturalViolation,
-    ArchitecturalRole
+    CSharpSemanticAnalyzer,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ class AuditRule:
     description: str
     severity: str  # "error", "warning", "info"
     enabled: bool = True
-    configuration: Dict = field(default_factory=dict)
+    configuration: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -41,10 +40,10 @@ class AuditResult:
     """Result of an architectural audit."""
     total_types: int
     total_violations: int
-    violations_by_severity: Dict[str, int]
-    violations_by_rule: Dict[str, int]
-    violations: List[ArchitecturalViolation]
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    violations_by_severity: dict[str, int]
+    violations_by_rule: dict[str, int]
+    violations: list[ArchitecturalViolation]
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 class CSharpAuditEngine:
@@ -57,8 +56,8 @@ class CSharpAuditEngine:
             )
 
         self.analyzer = analyzer
-        self.rules: Dict[str, AuditRule] = {}
-        self.violations: List[ArchitecturalViolation] = []
+        self.rules: dict[str, AuditRule] = {}
+        self.violations: list[ArchitecturalViolation] = []
 
         # Load configuration
         self.config = self._load_config(config_path)
@@ -66,7 +65,7 @@ class CSharpAuditEngine:
         # Initialize default rules
         self._initialize_rules()
 
-    def _load_config(self, config_path: str) -> Dict:
+    def _load_config(self, config_path: str) -> dict:
         """Load C# audit configuration from YAML file."""
         try:
             config_file = Path(config_path)
@@ -192,7 +191,7 @@ class CSharpAuditEngine:
             severity="warning"
         )
 
-    def audit_mediatr_pattern(self) -> List[ArchitecturalViolation]:
+    def audit_mediatr_pattern(self) -> list[ArchitecturalViolation]:
         """Audit MediatR pattern compliance."""
         violations = []
         rule1 = self.rules["MEDIATR_001"]
@@ -229,7 +228,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_sql_access(self) -> List[ArchitecturalViolation]:
+    def audit_sql_access(self) -> list[ArchitecturalViolation]:
         """Audit direct SQL access in non-data layers."""
         violations = []
         rule = self.rules["DATA_001"]
@@ -254,7 +253,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def detect_cyclic_dependencies(self) -> List[ArchitecturalViolation]:
+    def detect_cyclic_dependencies(self) -> list[ArchitecturalViolation]:
         """Detect cyclic dependencies between namespaces.
 
         Thread-safe implementation that returns cycle instead of mutating shared state.
@@ -269,7 +268,7 @@ class CSharpAuditEngine:
                 if dep_type and dep_type.namespace != type_info.namespace:
                     namespace_deps[type_info.namespace].add(dep_type.namespace)
 
-        def find_cycle(node, visited, rec_stack, path) -> Optional[List[str]]:
+        def find_cycle(node, visited, rec_stack, path) -> list[str] | None:
             """Find cycle starting from node. Returns cycle path or None."""
             visited.add(node)
             rec_stack.add(node)
@@ -289,7 +288,7 @@ class CSharpAuditEngine:
             rec_stack.remove(node)
             return None
 
-        visited = set()
+        visited: set[str] = set()
         for namespace in namespace_deps:
             if namespace not in visited:
                 cycle = find_cycle(namespace, visited, set(), [])
@@ -305,7 +304,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_god_objects(self) -> List[ArchitecturalViolation]:
+    def audit_god_objects(self) -> list[ArchitecturalViolation]:
         """Detect God Objects using LCOM and LOC metrics."""
         violations = []
         rule = self.rules["DESIGN_001"]
@@ -338,7 +337,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_async_safety(self) -> List[ArchitecturalViolation]:
+    def audit_async_safety(self) -> list[ArchitecturalViolation]:
         """Audit async/await usage for anti-patterns."""
         violations = []
         rule = self.rules["ASYNC_001"]
@@ -358,7 +357,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_dependency_direction(self) -> List[ArchitecturalViolation]:
+    def audit_dependency_direction(self) -> list[ArchitecturalViolation]:
         """Audit that dependencies flow in the correct direction."""
         violations = []
         rule = self.rules["ARCH_002"]
@@ -410,7 +409,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_repository_interfaces(self) -> List[ArchitecturalViolation]:
+    def audit_repository_interfaces(self) -> list[ArchitecturalViolation]:
         """Audit that repositories implement interfaces."""
         violations = []
         rule = self.rules["DATA_002"]
@@ -432,7 +431,7 @@ class CSharpAuditEngine:
 
         return violations
 
-    def audit_controller_attributes(self) -> List[ArchitecturalViolation]:
+    def audit_controller_attributes(self) -> list[ArchitecturalViolation]:
         """Audit that controllers have required attributes."""
         violations = []
         rule = self.rules["ATTR_001"]
@@ -477,24 +476,25 @@ class CSharpAuditEngine:
             except Exception as e:
                 logger.error(f"Error in {audit_method.__name__}: {e}")
 
-        violations_by_severity = defaultdict(int)
-        violations_by_rule = defaultdict(int)
+        violations_by_severity: defaultdict[str, int] = defaultdict(int)
+        violations_by_rule: defaultdict[str, int] = defaultdict(int)
 
         for violation in all_violations:
             violations_by_severity[violation.severity] += 1
             violations_by_rule[violation.rule_id] += 1
 
         types_by_count = len(self.analyzer.types) if self.analyzer.types else 0
-        metrics = {
+        types_by_role_dict: defaultdict[str, int] = defaultdict(int)
+        metrics: dict[str, int | float | defaultdict[str, int]] = {
             "total_types": types_by_count,
             "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
             "avg_dependencies": sum(len(t.dependencies) for t in self.analyzer.types.values()) / types_by_count if types_by_count else 0,
-            "types_by_role": defaultdict(int),
-            "namespaces_analyzed": len(set(t.namespace for t in self.analyzer.types.values())),
+            "types_by_role": types_by_role_dict,
+            "namespaces_analyzed": len({t.namespace for t in self.analyzer.types.values()}),
         }
 
         for type_info in self.analyzer.types.values():
-            metrics["types_by_role"][type_info.architectural_role.value] += 1
+            types_by_role_dict[type_info.architectural_role.value] += 1
 
         return AuditResult(
             total_types=len(self.analyzer.types),

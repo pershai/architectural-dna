@@ -13,7 +13,6 @@ Detects common C# design patterns like:
 """
 
 import re
-from typing import Dict, List, Set, Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -57,7 +56,7 @@ class PatternMatch:
     """Result of pattern detection."""
     pattern: DesignPattern
     confidence: float  # 0-1, higher is more confident
-    indicators: List[str]  # What indicators were found
+    indicators: list[str]  # What indicators were found
     description: str
 
 
@@ -66,16 +65,16 @@ class CSharpPatternDetector:
 
     def __init__(self):
         """Initialize pattern detector."""
-        self.patterns_found: Dict[str, List[PatternMatch]] = {}
+        self.patterns_found: dict[str, list[PatternMatch]] = {}
 
     def _create_pattern_match(
         self,
         pattern: DesignPattern,
-        indicators: List[str],
+        indicators: list[str],
         max_indicators: int,
         confidence_threshold: float,
         type_name: str
-    ) -> Optional[PatternMatch]:
+    ) -> PatternMatch | None:
         """
         Helper method to create a PatternMatch if confidence threshold is met.
 
@@ -104,7 +103,7 @@ class CSharpPatternDetector:
 
         return None
 
-    def detect_patterns(self, code: str, type_name: str) -> List[PatternMatch]:
+    def detect_patterns(self, code: str, type_name: str) -> list[PatternMatch]:
         """
         Detect design patterns in C# code.
 
@@ -149,7 +148,7 @@ class CSharpPatternDetector:
 
     # Creational Patterns
 
-    def _detect_singleton(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_singleton(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Singleton pattern."""
         indicators = []
 
@@ -175,7 +174,7 @@ class CSharpPatternDetector:
 
         return [pattern_match] if pattern_match else []
 
-    def _detect_factory(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_factory(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Factory pattern."""
         indicators = []
 
@@ -201,7 +200,7 @@ class CSharpPatternDetector:
 
         return [pattern_match] if pattern_match else []
 
-    def _detect_builder(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_builder(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Builder pattern."""
         indicators = []
 
@@ -229,7 +228,7 @@ class CSharpPatternDetector:
 
     # Structural Patterns
 
-    def _detect_decorator(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_decorator(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Decorator pattern."""
         matches = []
         indicators = []
@@ -258,7 +257,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_adapter(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_adapter(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Adapter pattern."""
         matches = []
         indicators = []
@@ -287,7 +286,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_facade(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_facade(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Facade pattern."""
         matches = []
         indicators = []
@@ -314,7 +313,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_proxy(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_proxy(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Proxy pattern."""
         matches = []
         indicators = []
@@ -341,7 +340,7 @@ class CSharpPatternDetector:
 
     # Behavioral Patterns
 
-    def _detect_observer(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_observer(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Observer pattern."""
         matches = []
         indicators = []
@@ -370,7 +369,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_strategy(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_strategy(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Strategy pattern."""
         matches = []
         indicators = []
@@ -399,7 +398,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_command(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_command(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Command pattern."""
         matches = []
         indicators = []
@@ -428,7 +427,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_chain_of_responsibility(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_chain_of_responsibility(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Chain of Responsibility pattern."""
         matches = []
         indicators = []
@@ -457,7 +456,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_state(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_state(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect State pattern."""
         matches = []
         indicators = []
@@ -488,7 +487,7 @@ class CSharpPatternDetector:
 
     # Architectural Patterns
 
-    def _detect_repository(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_repository(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Repository pattern."""
         matches = []
         indicators = []
@@ -517,7 +516,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_unit_of_work(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_unit_of_work(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Unit of Work pattern."""
         matches = []
         indicators = []
@@ -546,7 +545,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_cqrs(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_cqrs(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect CQRS pattern."""
         matches = []
         indicators = []
@@ -575,7 +574,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_event_sourcing(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_event_sourcing(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Event Sourcing pattern."""
         matches = []
         indicators = []
@@ -604,7 +603,7 @@ class CSharpPatternDetector:
 
         return matches
 
-    def _detect_pubsub(self, code: str, type_name: str) -> List[PatternMatch]:
+    def _detect_pubsub(self, code: str, type_name: str) -> list[PatternMatch]:
         """Detect Pub/Sub pattern."""
         matches = []
         indicators = []

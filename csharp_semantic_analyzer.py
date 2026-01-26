@@ -7,20 +7,18 @@ This module provides deep architectural analysis including:
 - Architectural rule enforcement
 """
 
-import re
-import yaml
 import logging
-from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional, Tuple
-from pathlib import Path
+import re
 from collections import defaultdict
+from dataclasses import dataclass, field
 from enum import Enum
-from pydantic import BaseModel, Field, field_validator
+from pathlib import Path
 
-from models import Language, PatternCategory
+import yaml
+from pydantic import BaseModel, Field
+
 from csharp_constants import CSHARP_CONSTANTS, SQL_LIBRARIES
-from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
-from csharp_constants import CSHARP_CONSTANTS
+from csharp_pattern_detector import CSharpPatternDetector
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +41,8 @@ class ArchitecturalRole(str, Enum):
 class CSharpAttribute:
     """Represents a C# attribute."""
     name: str
-    arguments: List[str] = field(default_factory=list)
-    location: Optional[str] = None
+    arguments: list[str] = field(default_factory=list)
+    location: str | None = None
 
 
 @dataclass
@@ -52,8 +50,8 @@ class CSharpMember:
     """Represents a class member (field, property, method)."""
     name: str
     member_type: str  # "field", "property", "method"
-    return_type: Optional[str] = None
-    accessed_members: Set[str] = field(default_factory=set)
+    return_type: str | None = None
+    accessed_members: set[str] = field(default_factory=set)
     is_static: bool = False
 
 
@@ -75,15 +73,15 @@ class CSharpTypeInfo:
     type_kind: str  # "class", "interface", "struct", "record", "enum"
 
     # Architectural metadata
-    attributes: List[CSharpAttribute] = field(default_factory=list)
+    attributes: list[CSharpAttribute] = field(default_factory=list)
     architectural_role: ArchitecturalRole = ArchitecturalRole.UNKNOWN
 
     # Dependencies
-    dependencies: Set[str] = field(default_factory=set)  # Types this depends on
-    dependents: Set[str] = field(default_factory=set)   # Types that depend on this
+    dependencies: set[str] = field(default_factory=set)  # Types this depends on
+    dependents: set[str] = field(default_factory=set)   # Types that depend on this
 
     # Members for cohesion analysis
-    members: List[CSharpMember] = field(default_factory=list)
+    members: list[CSharpMember] = field(default_factory=list)
 
     # Metrics
     lines_of_code: int = 0
@@ -92,13 +90,13 @@ class CSharpTypeInfo:
 
     # Partial class tracking
     is_partial: bool = False
-    partial_locations: List[str] = field(default_factory=list)
+    partial_locations: list[str] = field(default_factory=list)
 
     # Async safety violations (line_number, message)
-    async_violations: List[Tuple[int, str]] = field(default_factory=list)
+    async_violations: list[tuple[int, str]] = field(default_factory=list)
 
     # Detected design patterns
-    design_patterns: List[dict] = field(default_factory=list)  # List of {pattern, confidence, indicators}
+    design_patterns: list[dict] = field(default_factory=list)  # List of {pattern, confidence, indicators}
 
 
 @dataclass
@@ -109,8 +107,8 @@ class ArchitecturalViolation:
     message: str
     type_name: str
     file_path: str
-    line_number: Optional[int] = None
-    suggestion: Optional[str] = None
+    line_number: int | None = None
+    suggestion: str | None = None
 
 
 class MetricsConfig(BaseModel):
@@ -210,12 +208,12 @@ class CSharpSemanticAnalyzer:
     }
 
     def __init__(self, config_path: str = "config.yaml"):
-        self.types: Dict[str, CSharpTypeInfo] = {}
-        self.di_registrations: List[DIRegistration] = []
+        self.types: dict[str, CSharpTypeInfo] = {}
+        self.di_registrations: list[DIRegistration] = []
         self.config = self._load_config(config_path)
         self.pattern_detector = CSharpPatternDetector()
 
-    def _load_config(self, config_path: str) -> Dict:
+    def _load_config(self, config_path: str) -> dict:
         """Load and validate C# configuration from YAML file.
 
         Uses Pydantic for validation to ensure all values are within safe ranges.
@@ -247,7 +245,7 @@ class CSharpSemanticAnalyzer:
         # Return validated defaults if config loading fails
         return CSharpAuditConfig().model_dump()
 
-    def extract_attributes(self, content: str, start_line: int) -> List[CSharpAttribute]:
+    def extract_attributes(self, content: str, start_line: int) -> list[CSharpAttribute]:
         """Extract C# attributes from code."""
         attributes = []
         lines = content.split("\n")
@@ -271,9 +269,9 @@ class CSharpSemanticAnalyzer:
 
     def determine_architectural_role(
         self,
-        attributes: List[CSharpAttribute],
+        attributes: list[CSharpAttribute],
         type_name: str,
-        base_types: List[str]
+        base_types: list[str]
     ) -> ArchitecturalRole:
         """Determine architectural role based on attributes and conventions."""
         # Check attributes first
@@ -303,7 +301,7 @@ class CSharpSemanticAnalyzer:
 
         return ArchitecturalRole.UNKNOWN
 
-    def extract_di_registrations(self, program_cs_content: str, file_path: str) -> List[DIRegistration]:
+    def extract_di_registrations(self, program_cs_content: str, file_path: str) -> list[DIRegistration]:
         """Extract dependency injection registrations from Program.cs or Startup.cs."""
         registrations = []
         patterns = [
@@ -330,7 +328,7 @@ class CSharpSemanticAnalyzer:
         self.di_registrations.extend(registrations)
         return registrations
 
-    def extract_dependencies(self, content: str) -> Set[str]:
+    def extract_dependencies(self, content: str) -> set[str]:
         """Extract type dependencies from C# code."""
         dependencies = set()
 
@@ -356,7 +354,7 @@ class CSharpSemanticAnalyzer:
 
         return dependencies
 
-    def extract_members(self, content: str) -> List[CSharpMember]:
+    def extract_members(self, content: str) -> list[CSharpMember]:
         """Extract class members for cohesion analysis."""
         members = []
 
@@ -416,7 +414,7 @@ class CSharpSemanticAnalyzer:
 
         return any(re.search(pattern, region) for pattern in patterns)
 
-    def calculate_lcom(self, members: List[CSharpMember], content: str) -> float:
+    def calculate_lcom(self, members: list[CSharpMember], content: str) -> float:
         """Calculate Lack of Cohesion in Methods (LCOM4)."""
         if not content or not content.strip():
             logger.warning("Empty content provided to calculate_lcom")
@@ -500,10 +498,9 @@ class CSharpSemanticAnalyzer:
             if content[i] == "'":
                 i += 1
                 while i < len(content):
-                    if content[i] == "'":
-                        if i > 0 and content[i-1] != '\\':
-                            i += 1
-                            break
+                    if content[i] == "'" and (i == 0 or content[i-1] != '\\'):
+                        i += 1
+                        break
                     i += 1
                 continue
 
@@ -565,7 +562,7 @@ class CSharpSemanticAnalyzer:
 
         return complexity
 
-    def detect_async_over_sync(self, content: str) -> List[Tuple[int, str]]:
+    def detect_async_over_sync(self, content: str) -> list[tuple[int, str]]:
         """Detect async-over-sync anti-patterns and async best practice violations."""
         violations = []
 
@@ -617,7 +614,7 @@ class CSharpSemanticAnalyzer:
         type_info.dependencies = self.extract_dependencies(content)
 
         # Count lines of code (excluding blanks and comments)
-        lines = [l.strip() for l in content.split("\n") if l.strip() and not l.strip().startswith("//")]
+        lines = [line.strip() for line in content.split("\n") if line.strip() and not line.strip().startswith("//")]
         type_info.lines_of_code = len(lines)
 
         # Calculate cyclomatic complexity with proper regex to avoid false positives
@@ -636,7 +633,7 @@ class CSharpSemanticAnalyzer:
                     }
                     for p in patterns
                 ]
-            except Exception as e:
+            except Exception:
                 # Gracefully skip pattern detection on error
                 pass
 
@@ -683,12 +680,12 @@ class CSharpSemanticAnalyzer:
         """Aggregate data from partial class declarations."""
         partial_groups = defaultdict(list)
 
-        for type_name, type_info in self.types.items():
+        for _type_name, type_info in self.types.items():
             if type_info.is_partial:
                 key = f"{type_info.namespace}.{type_info.name}"
                 partial_groups[key].append(type_info)
 
-        for key, partials in partial_groups.items():
+        for _key, partials in partial_groups.items():
             if len(partials) <= 1:
                 continue
 

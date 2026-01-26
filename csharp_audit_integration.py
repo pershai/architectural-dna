@@ -7,17 +7,16 @@ Architectural DNA pattern extraction and storage system.
 import logging
 import re
 from pathlib import Path
-from typing import List, Dict, Optional
 
-from models import Pattern, PatternCategory, Language, CodeChunk
-from pattern_extractor import PatternExtractor
-from csharp_semantic_analyzer import (
-    CSharpSemanticAnalyzer,
-    CSharpTypeInfo,
-    ArchitecturalRole
-)
 from csharp_audit_engine import CSharpAuditEngine
 from csharp_audit_reporter import CSharpAuditReporter
+from csharp_semantic_analyzer import (
+    ArchitecturalRole,
+    CSharpSemanticAnalyzer,
+    CSharpTypeInfo,
+)
+from models import Language, Pattern, PatternCategory
+from pattern_extractor import PatternExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ class CSharpArchitecturalAuditor:
         self,
         file_path: str,
         content: str
-    ) -> List[CSharpTypeInfo]:
+    ) -> list[CSharpTypeInfo]:
         """Analyze a C# file with full semantic enrichment."""
         if not content or not content.strip():
             logger.warning(f"Empty content for file: {file_path}")
@@ -94,9 +93,9 @@ class CSharpArchitecturalAuditor:
     def analyze_csharp_project(
         self,
         project_path: str,
-        include_patterns: List[str] = None,
+        include_patterns: list[str] | None = None,
         batch_size: int = 100
-    ) -> Dict:
+    ) -> dict:
         """Analyze an entire C# project or solution.
 
         Args:
@@ -207,7 +206,7 @@ class CSharpArchitecturalAuditor:
 
     def generate_reports(
         self,
-        analysis_result: Dict,
+        analysis_result: dict,
         output_dir: str
     ):
         """Generate all report formats."""
@@ -233,8 +232,8 @@ class CSharpArchitecturalAuditor:
 
     def convert_to_dna_patterns(
         self,
-        types: List[CSharpTypeInfo]
-    ) -> List[Pattern]:
+        types: list[CSharpTypeInfo]
+    ) -> list[Pattern]:
         """Convert analyzed types to DNA Pattern format for storage."""
         if not types:
             logger.warning("No types provided to convert_to_dna_patterns")
@@ -291,7 +290,7 @@ class CSharpArchitecturalAuditor:
                 return line.strip().replace("namespace ", "").rstrip(";")
         return ""
 
-    def _extract_base_types(self, content: str) -> List[str]:
+    def _extract_base_types(self, content: str) -> list[str]:
         """Extract base types/interfaces from class declaration."""
         match = re.search(r':\s*([^{]+)', content)
         if match:
@@ -357,7 +356,7 @@ class CSharpArchitecturalAuditor:
         github_token: str,
         min_quality_score: int = 5,
         temp_dir: str = "/tmp/dna_repos"
-    ) -> Dict:
+    ) -> dict:
         """
         Sync and analyze C# patterns from GitHub repository.
 
@@ -370,16 +369,21 @@ class CSharpArchitecturalAuditor:
         Returns:
             Dictionary with patterns and analysis statistics
         """
-        from github_client import GitHubClient
-        from pathlib import Path
         import shutil
+        from pathlib import Path
+
+        from github_client import GitHubClient
 
         try:
             logger.info(f"Syncing GitHub C# repo: {repo_name}")
 
-            # Clone repository
+            # Get repository
             client = GitHubClient(github_token)
-            repo_path = client.clone_repository(repo_name, temp_dir)
+            repo = client.get_repository(repo_name)
+            repo_path = repo.clone_url if hasattr(repo, 'clone_url') else None
+
+            if not repo_path:
+                raise ValueError(f"Could not get clone URL for repository {repo_name}")
 
             logger.info(f"Analyzing C# project at: {repo_path}")
 
@@ -402,15 +406,16 @@ class CSharpArchitecturalAuditor:
                 f"from {repo_name}"
             )
 
+            audit_result = analysis_result.get("audit_result")
+            violations = audit_result.violations if audit_result is not None else []
+
             return {
                 "repository": repo_name,
                 "total_patterns": len(patterns),
                 "high_quality_patterns": len(high_quality_patterns),
                 "patterns": high_quality_patterns,
-                "audit_result": analysis_result.get("audit_result"),
-                "violations": analysis_result.get("audit_result").violations
-                if "audit_result" in analysis_result
-                else []
+                "audit_result": audit_result,
+                "violations": violations
             }
 
         except Exception as e:

@@ -8,18 +8,17 @@ Generates comprehensive audit reports in multiple formats:
 
 import json
 from datetime import datetime
-from typing import Dict, List
-from pathlib import Path
+from typing import Any
 
-from csharp_audit_engine import AuditResult, ArchitecturalViolation
-from csharp_semantic_analyzer import CSharpTypeInfo, ArchitecturalRole
+from csharp_audit_engine import AuditResult
+from csharp_semantic_analyzer import CSharpTypeInfo
 
 
 class CSharpAuditReporter:
     """Generate architectural audit reports in various formats."""
 
     @staticmethod
-    def generate_json_report(result: AuditResult, output_path: str, types: Dict[str, CSharpTypeInfo] = None):
+    def generate_json_report(result: AuditResult, output_path: str, types: dict[str, CSharpTypeInfo] | None = None):
         """Generate JSON format audit report."""
         report = {
             "metadata": {
@@ -66,7 +65,7 @@ class CSharpAuditReporter:
         return report
 
     @staticmethod
-    def generate_markdown_report(result: AuditResult, types: Dict[str, CSharpTypeInfo], output_path: str):
+    def generate_markdown_report(result: AuditResult, types: dict[str, CSharpTypeInfo], output_path: str):
         """Generate Markdown format audit report."""
         md = []
 
@@ -117,7 +116,7 @@ class CSharpAuditReporter:
                 md.append(f"\n... and {len(rule_violations) - 10} more")
 
         md.append("\n## Top Architectural Issues")
-        type_violation_count = {}
+        type_violation_count: dict[str, int] = {}
         for v in result.violations:
             type_violation_count[v.type_name] = type_violation_count.get(v.type_name, 0) + 1
 
@@ -172,7 +171,7 @@ class CSharpAuditReporter:
         analyzer = CSharpSemanticAnalyzer()
         analyzer.types = types
 
-        namespaces = set(t.namespace for t in types.values() if t.namespace)
+        namespaces = {t.namespace for t in types.values() if t.namespace}
         for ns in sorted(namespaces):
             instability = analyzer.calculate_instability(ns)
             classification = "Stable" if instability < 0.3 else "Balanced" if instability < 0.7 else "Unstable"
@@ -213,9 +212,9 @@ class CSharpAuditReporter:
         return '\n'.join(md)
 
     @staticmethod
-    def generate_sarif_report(result: AuditResult, output_path: str):
+    def generate_sarif_report(result: AuditResult, output_path: str) -> dict[str, Any]:
         """Generate SARIF format report for IDE integration."""
-        sarif = {
+        sarif: dict[str, Any] = {
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
             "version": "2.1.0",
             "runs": [
@@ -256,7 +255,7 @@ class CSharpAuditReporter:
         sarif["runs"][0]["tool"]["driver"]["rules"] = list(rule_definitions.values())
 
         for v in result.violations:
-            result_entry = {
+            result_entry: dict[str, Any] = {
                 "ruleId": v.rule_id,
                 "level": "error" if v.severity == "error" else "warning",
                 "message": {
@@ -274,7 +273,7 @@ class CSharpAuditReporter:
             }
 
             if v.line_number:
-                result_entry["locations"][0]["physicalLocation"]["region"] = {
+                result_entry["locations"][0]["physicalLocation"]["region"] = {  # type: ignore[index]
                     "startLine": v.line_number
                 }
 
