@@ -381,6 +381,28 @@ Config location: `~/.gemini/antigravity/mcp_config.json`
 }
 ```
 
+### Claude Code Skill
+
+For Claude Code users, a [SKILL.md](SKILL.md) file provides workflow guidance to help the LLM make better decisions about which tools to use and when.
+
+**Install the skill:**
+```bash
+claude skill add ./SKILL.md
+```
+
+**What the skill provides:**
+- **Tool selection guidance** - When to use `batch_sync_repo` vs `sync_github_repo`
+- **Documented workflows** - First-time setup, adding repos, searching, maintenance
+- **Best practices** - What to always do, never do, and error recovery
+- **Tool relationships** - How the 12 tools connect and depend on each other
+
+**Example workflows documented:**
+1. First-time DNA bank setup
+2. Adding a new repository
+3. Finding and using patterns
+4. Maintenance after sync issues
+5. Improving pattern quality (recategorization)
+
 ## Configuration
 
 ### config.yaml Structure
@@ -547,6 +569,7 @@ architectural-dna/
 ├── constants.py           # Centralized configuration constants
 ├── discover_dna.py        # Local directory indexing
 ├── config.yaml            # Configuration
+├── SKILL.md               # Claude Code skill with workflow guidance
 ├── requirements.txt       # Python dependencies
 └── .env                   # Environment variables (gitignored)
 ```
