@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def get_env_or_header(key: str, header_key: str, default: str = None) -> str:
+def get_env_or_header(key: str, header_key: str, default: str | None = None) -> str | None:
     """Get value from environment variable, with header override support.
 
     Priority: Environment variable > Default
@@ -447,6 +447,7 @@ def analyze_csharp_project(
     """
     try:
         from pathlib import Path
+
         from csharp_audit_integration import CSharpArchitecturalAuditor
         from csharp_audit_reporter import CSharpAuditReporter
 
@@ -480,25 +481,24 @@ def analyze_csharp_project(
         CSharpAuditReporter.generate_sarif_report(audit_result, str(sarif_path))
 
         # Build summary
-        summary = f"""✅ **C# Project Analysis Complete**
+        summary = f"""C# Project Analysis Complete
 
-📊 **Summary:**
+Summary:
   • Total Types Analyzed: {audit_result.total_types}
   • Total Violations: {audit_result.total_violations}
   • Violations by Severity:"""
 
         for severity, count in sorted(audit_result.violations_by_severity.items()):
-            emoji = {"error": "🔴", "warning": "⚠️", "info": "ℹ️"}.get(severity, "📌")
-            summary += f"\n    {emoji} {severity.upper()}: {count}"
+            summary += f"\n    {severity.upper()}: {count}"
 
         summary += """
 
-📁 **Reports Generated:**"""
+Reports Generated:"""
         summary += f"\n  • JSON: `{json_path}`"
         summary += f"\n  • Markdown: `{md_path}`"
         summary += f"\n  • SARIF (IDE): `{sarif_path}`"
 
-        summary += "\n\n🎯 **Top 5 Rules Violated:**"
+        summary += "\n\nTop 5 Rules Violated:"
         for i, (rule_id, count) in enumerate(
             sorted(
                 audit_result.violations_by_rule.items(),
@@ -513,10 +513,10 @@ def analyze_csharp_project(
         return summary
 
     except ImportError as e:
-        return f"❌ Error: C# audit modules not available - {e}"
+        return f"Error: C# audit modules not available - {e}"
     except Exception as e:
         logger.error(f"C# project analysis failed: {e}", exc_info=True)
-        return f"❌ Error analyzing C# project: {str(e)}"
+        return f"Error analyzing C# project: {str(e)}"
 
 
 def apply_header_overrides(headers: dict) -> dict:

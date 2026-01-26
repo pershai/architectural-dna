@@ -202,7 +202,7 @@ class GitHubClient:
                     for node in cached
                 ]
 
-        nodes = []
+        nodes: list[FileNode] = []
 
         try:
             contents = repo.get_contents(path)
@@ -300,7 +300,11 @@ class GitHubClient:
                     logger.debug(f"Cache hit for file content: {file_path}")
                     return cached
 
-            content: ContentFile = repo.get_contents(file_path)
+            contents = repo.get_contents(file_path)
+            # Handle single file case
+            if not isinstance(contents, ContentFile):
+                return None
+            content = contents
             if content.encoding == "base64":
                 decoded = content.decoded_content.decode("utf-8")
 

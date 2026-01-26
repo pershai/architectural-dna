@@ -176,14 +176,14 @@ public class UserService {
     // Bad: Using .Result on async method
     public User GetUser(int id) {
         var query = new GetUserQuery { Id = id };
-        var result = mediator.Send(query).Result;  // ❌ BLOCKING!
+        var result = mediator.Send(query).Result;  // BLOCKING!
         return result;
     }
 
     // Bad: Using .Wait()
     public void ProcessUsers(List<int> ids) {
         var tasks = ids.Select(id => ProcessUserAsync(id)).ToList();
-        Task.WaitAll(tasks.ToArray());  // ❌ BLOCKING!
+        Task.WaitAll(tasks.ToArray());  // BLOCKING!
     }
 
     private async Task ProcessUserAsync(int id) {
@@ -235,7 +235,7 @@ namespace MyApp.Controllers {
     public class UserController {
         [HttpGet("{id}")]
         public IActionResult GetUser(int id) {
-            // ❌ BAD: Direct SQL in controller
+            // BAD: Direct SQL in controller
             using (var conn = new SqlConnection("...")) {
                 using (var cmd = new SqlCommand("SELECT * FROM Users WHERE Id = @id", conn)) {
                     cmd.Parameters.AddWithValue("@id", id);

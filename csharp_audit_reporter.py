@@ -79,8 +79,8 @@ class CSharpAuditReporter:
         md.append("\n## Executive Summary")
         md.append("\n### Violations by Severity")
         for severity, count in sorted(result.violations_by_severity.items()):
-            emoji = {"error": "🔴", "warning": "⚠️", "info": "ℹ️"}.get(severity, "📌")
-            md.append(f"- {emoji} **{severity.upper()}**: {count}")
+            severity_marker = {"error": "ERROR", "warning": "WARNING", "info": "INFO"}.get(severity, "OTHER")
+            md.append(f"- **{severity_marker}**: {count}")
 
         # Metrics Dashboard
         md.append("\n## Architectural Metrics")
@@ -110,7 +110,7 @@ class CSharpAuditReporter:
                     md.append(f"- Line: {v.line_number}")
                 md.append(f"- Issue: {v.message}")
                 if v.suggestion:
-                    md.append(f"- 💡 Suggestion: {v.suggestion}")
+                    md.append(f"- Suggestion: {v.suggestion}")
 
             if len(rule_violations) > 10:
                 md.append(f"\n... and {len(rule_violations) - 10} more")
@@ -155,8 +155,7 @@ class CSharpAuditReporter:
                     for pattern in sorted(type_info.design_patterns, key=lambda x: -x["confidence"]):
                         pattern_name = pattern["pattern"].replace("_", " ").title()
                         confidence_pct = int(pattern["confidence"] * 100)
-                        confidence_bar = "█" * int(confidence_pct / 10) + "░" * (10 - int(confidence_pct / 10))
-                        md.append(f"\n- **{pattern_name}** `{confidence_bar}` {confidence_pct}%")
+                        md.append(f"\n- **{pattern_name}** [{confidence_pct}%]")
                         md.append(f"  - {pattern['description']}")
                         if pattern["indicators"]:
                             md.append("  - Indicators:")
@@ -291,13 +290,12 @@ class CSharpAuditReporter:
         print("\n" + "="*80)
         print("  C# ARCHITECTURAL DNA AUDIT REPORT")
         print("="*80)
-        print(f"\n📊 Types Analyzed: {result.total_types}")
-        print(f"⚠️  Total Violations: {result.total_violations}\n")
+        print(f"\nTypes Analyzed: {result.total_types}")
+        print(f"Total Violations: {result.total_violations}\n")
 
         print("Violations by Severity:")
         for severity, count in sorted(result.violations_by_severity.items()):
-            emoji = {"error": "🔴", "warning": "⚠️", "info": "ℹ️"}.get(severity, "📌")
-            print(f"  {emoji} {severity.upper():8s}: {count:3d}")
+            print(f"  {severity.upper():8s}: {count:3d}")
 
         print("\nTop 5 Rule Violations:")
         for rule_id, count in sorted(result.violations_by_rule.items(), key=lambda x: -x[1])[:5]:

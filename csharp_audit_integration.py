@@ -424,9 +424,10 @@ class CSharpArchitecturalAuditor:
 
         finally:
             # Cleanup temporary directory
-            repo_path = Path(temp_dir) / repo_name.split("/")[-1]
+            repo_path_str = str(Path(temp_dir) / repo_name.split("/")[-1])
+            repo_path = Path(repo_path_str)
             if repo_path.exists():
-                shutil.rmtree(repo_path, ignore_errors=True)
+                shutil.rmtree(repo_path_str, ignore_errors=True)
 
 
 def audit_csharp_project_example(project_path: str, output_dir: str):
