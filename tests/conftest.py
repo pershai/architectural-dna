@@ -1,7 +1,6 @@
 """Shared pytest fixtures for C# module testing."""
 
 import pytest
-from csharp_semantic_analyzer import CSharpTypeInfo, ArchitecturalRole
 
 
 @pytest.fixture

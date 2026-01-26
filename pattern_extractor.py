@@ -393,7 +393,6 @@ class PatternExtractor:
     def _extract_csharp_context(self, content: str) -> str:
         """Extract using statements and namespace from C# code."""
         context_lines = []
-        in_namespace = False
         namespace_line = None
 
         for line in content.split("\n"):
@@ -406,7 +405,6 @@ class PatternExtractor:
             # Collect namespace declaration (both classic and file-scoped)
             elif stripped.startswith("namespace "):
                 namespace_line = line
-                in_namespace = True
 
         # Add namespace at the beginning if found
         if namespace_line:
@@ -462,10 +460,9 @@ class PatternExtractor:
                 if line[j] == "'":
                     j += 1
                     while j < len(line):
-                        if line[j] == "'":
-                            if j > 0 and line[j-1] != '\\':
-                                j += 1
-                                break
+                        if line[j] == "'" and (j == 0 or line[j-1] != '\\'):
+                            j += 1
+                            break
                         j += 1
                     continue
 

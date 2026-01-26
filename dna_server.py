@@ -446,9 +446,9 @@ def analyze_csharp_project(
         Summary of analysis including violation counts and report locations
     """
     try:
+        from pathlib import Path
         from csharp_audit_integration import CSharpArchitecturalAuditor
         from csharp_audit_reporter import CSharpAuditReporter
-        from pathlib import Path
 
         logger.info(f"Starting C# project analysis: {project_path}")
 
