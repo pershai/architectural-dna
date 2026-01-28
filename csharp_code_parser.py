@@ -114,11 +114,7 @@ class CSharpCodeParser:
                 while i < length:
                     if content_str[i] == '"':
                         # Verbatim string: "" is escape for "
-                        if (
-                            is_verbatim
-                            and i < length - 1
-                            and content_str[i + 1] == '"'
-                        ):
+                        if is_verbatim and i < length - 1 and content_str[i + 1] == '"':
                             i += 2
                             continue
                         # Regular string: \" is escape
@@ -134,9 +130,7 @@ class CSharpCodeParser:
             if char == "'":
                 i += 1
                 while i < length:
-                    if content_str[i] == "'" and (
-                        i == 0 or content_str[i - 1] != "\\"
-                    ):
+                    if content_str[i] == "'" and (i == 0 or content_str[i - 1] != "\\"):
                         i += 1
                         break
                     i += 1

@@ -1,8 +1,9 @@
 """Tests for PatternExtractor."""
 
 import pytest
+
+from models import Language
 from pattern_extractor import PatternExtractor
-from models import Language, CodeChunk
 
 
 class TestPatternExtractor:
@@ -118,7 +119,7 @@ def load_config():
 
     def test_extract_python_imports(self, extractor):
         """Test Python import extraction."""
-        code = '''import os
+        code = """import os
 import sys
 from typing import Optional, List
 from pathlib import Path
@@ -126,7 +127,7 @@ from pathlib import Path
 # This is a comment
 class MyClass:
     pass
-'''
+"""
         imports = extractor._extract_python_imports(code)
 
         assert "import os" in imports
@@ -141,7 +142,7 @@ class MyClass:
 
     def test_extract_java_class(self, extractor):
         """Test extracting a Java class."""
-        code = '''package com.example.service;
+        code = """package com.example.service;
 
 import org.springframework.stereotype.Service;
 
@@ -157,7 +158,7 @@ public class UserService {
         return repository.findById(id).orElse(null);
     }
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "UserService.java", Language.JAVA)
 
         assert len(chunks) == 1
@@ -168,7 +169,7 @@ public class UserService {
 
     def test_extract_java_interface(self, extractor):
         """Test extracting a Java interface."""
-        code = '''package com.example.repository;
+        code = """package com.example.repository;
 
 import java.util.List;
 
@@ -177,7 +178,7 @@ public interface UserRepository {
     List<User> findAll();
     void save(User user);
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "UserRepository.java", Language.JAVA)
 
         assert len(chunks) == 1
@@ -186,7 +187,7 @@ public interface UserRepository {
 
     def test_extract_java_context(self, extractor):
         """Test Java context extraction."""
-        code = '''package com.example;
+        code = """package com.example;
 
 import java.util.List;
 import java.util.Map;
@@ -195,7 +196,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MyService {
 }
-'''
+"""
         context = extractor._extract_java_context(code)
 
         assert "package com.example" in context
@@ -209,7 +210,7 @@ public class MyService {
 
     def test_extract_js_class(self, extractor):
         """Test extracting a JavaScript class."""
-        code = '''import { EventEmitter } from 'events';
+        code = """import { EventEmitter } from 'events';
 
 export class DataProcessor extends EventEmitter {
     constructor(config) {
@@ -223,7 +224,7 @@ export class DataProcessor extends EventEmitter {
         return result;
     }
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "processor.js", Language.JAVASCRIPT)
 
         assert len(chunks) == 1
@@ -232,7 +233,7 @@ export class DataProcessor extends EventEmitter {
 
     def test_extract_js_function(self, extractor):
         """Test extracting a JavaScript function."""
-        code = '''import axios from 'axios';
+        code = """import axios from 'axios';
 
 export async function fetchUsers(apiUrl) {
     const response = await axios.get(`${apiUrl}/users`);
@@ -241,7 +242,7 @@ export async function fetchUsers(apiUrl) {
     }
     return response.data;
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "api.js", Language.JAVASCRIPT)
 
         assert len(chunks) >= 1
@@ -250,14 +251,14 @@ export async function fetchUsers(apiUrl) {
 
     def test_extract_js_arrow_function(self, extractor):
         """Test extracting a JavaScript arrow function."""
-        code = '''import { validate } from './utils';
+        code = """import { validate } from './utils';
 
 export const processData = async (data) => {
     validate(data);
     const result = transform(data);
     return result;
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "process.js", Language.JAVASCRIPT)
 
         assert len(chunks) == 1
@@ -266,7 +267,7 @@ export const processData = async (data) => {
 
     def test_extract_ts_class(self, extractor):
         """Test extracting a TypeScript class."""
-        code = '''import { Injectable } from '@angular/core';
+        code = """import { Injectable } from '@angular/core';
 
 @Injectable()
 export class ApiService {
@@ -280,7 +281,7 @@ export class ApiService {
         return this.http.get<Data[]>(this.baseUrl);
     }
 }
-'''
+"""
         chunks = extractor.extract_chunks(code, "api.service.ts", Language.TYPESCRIPT)
 
         assert len(chunks) == 1
@@ -289,12 +290,12 @@ export class ApiService {
 
     def test_extract_js_imports(self, extractor):
         """Test JavaScript import extraction."""
-        code = '''import React from 'react';
+        code = """import React from 'react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const Component = () => {};
-'''
+"""
         imports = extractor._extract_js_imports(code)
 
         assert "import React from 'react'" in imports
@@ -307,11 +308,7 @@ const Component = () => {};
 
     def test_find_brace_block_end_simple(self, extractor):
         """Test finding end of simple brace block."""
-        lines = [
-            "function test() {",
-            "    return 1;",
-            "}"
-        ]
+        lines = ["function test() {", "    return 1;", "}"]
         end = extractor._find_brace_block_end(lines, 0)
         assert end == 2
 
@@ -324,7 +321,7 @@ const Component = () => {};
             "            return 1;",
             "        }",
             "    }",
-            "}"
+            "}",
         ]
         end = extractor._find_brace_block_end(lines, 0)
         assert end == 6
@@ -335,12 +332,12 @@ const Component = () => {};
 
     def test_semantic_chunk_small_file(self, extractor):
         """Test semantic chunking for small files."""
-        code = '''def hello():
+        code = """def hello():
     print("Hello")
     print("World")
     print("!")
     return True
-'''
+"""
         chunks = extractor._semantic_chunk(code, "small.go", Language.GO)
 
         assert len(chunks) == 1
@@ -353,13 +350,13 @@ const Component = () => {};
 
     def test_is_valid_chunk_valid(self, extractor):
         """Test that longer chunks are valid."""
-        valid_code = '''def example():
+        valid_code = """def example():
     line1 = "test"
     line2 = "test"
     line3 = "test"
     line4 = "test"
     return line1
-'''
+"""
         assert extractor._is_valid_chunk(valid_code)
 
     # ==========================================================================
@@ -373,17 +370,17 @@ const Component = () => {};
 
     def test_no_extractable_chunks(self, extractor):
         """Test file with no extractable chunks falls back to semantic."""
-        code = '''# Just a comment
+        code = """# Just a comment
 x = 1
 y = 2
-'''
+"""
         chunks = extractor.extract_chunks(code, "simple.py", Language.PYTHON)
         # Falls back to semantic chunking, but content is too short (< 5 lines)
         assert len(chunks) == 0
 
     def test_unsupported_language_uses_semantic(self, extractor):
         """Test unsupported language uses semantic chunking."""
-        go_code = '''package main
+        go_code = """package main
 
 import "fmt"
 
@@ -393,7 +390,7 @@ func main() {
     fmt.Println("!")
     fmt.Println("test")
 }
-'''
+"""
         chunks = extractor.extract_chunks(go_code, "main.go", Language.GO)
         # Should use semantic chunking
         assert len(chunks) >= 0  # May or may not meet minimum lines

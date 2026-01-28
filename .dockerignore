@@ -48,9 +48,9 @@ Dockerfile
 docker-compose*.yml
 .dockerignore
 
-# Test files
-test_*.py
-*_test.py
+# Test files (keep test files for running tests in container)
+# test_*.py
+# *_test.py
 TEST_RESULTS.md
 docs/plans/IMPROVEMENTS.md
 docs/plans/REFACTORING.md

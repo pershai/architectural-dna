@@ -1,11 +1,8 @@
 """Tests for C# Design Pattern Detection."""
 
 import pytest
-from csharp_pattern_detector import (
-    CSharpPatternDetector,
-    DesignPattern,
-    PatternMatch
-)
+
+from csharp_pattern_detector import CSharpPatternDetector, DesignPattern
 
 
 @pytest.fixture
@@ -19,7 +16,7 @@ class TestSingletonDetection:
 
     def test_singleton_detection(self, detector):
         """Test detection of Singleton pattern."""
-        code = '''
+        code = """
 public class DatabaseConnection {
     private static readonly DatabaseConnection instance = new();
 
@@ -29,16 +26,18 @@ public class DatabaseConnection {
 
     public void Connect() { }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "DatabaseConnection")
 
-        singleton_patterns = [p for p in patterns if p.pattern == DesignPattern.SINGLETON]
+        singleton_patterns = [
+            p for p in patterns if p.pattern == DesignPattern.SINGLETON
+        ]
         assert len(singleton_patterns) > 0
         assert singleton_patterns[0].confidence >= 0.5
 
     def test_lazy_singleton_detection(self, detector):
         """Test detection of Lazy<T> Singleton."""
-        code = '''
+        code = """
 public class Logger {
     private static readonly Lazy<Logger> lazy = new(() => new Logger());
 
@@ -46,10 +45,12 @@ public class Logger {
 
     public static Logger Instance => lazy.Value;
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "Logger")
 
-        singleton_patterns = [p for p in patterns if p.pattern == DesignPattern.SINGLETON]
+        singleton_patterns = [
+            p for p in patterns if p.pattern == DesignPattern.SINGLETON
+        ]
         assert len(singleton_patterns) > 0
 
 
@@ -58,7 +59,7 @@ class TestFactoryDetection:
 
     def test_factory_detection(self, detector):
         """Test detection of Factory pattern."""
-        code = '''
+        code = """
 public class DataAccessFactory {
     public static IDataAccess Create(string type) {
         return type switch {
@@ -68,7 +69,7 @@ public class DataAccessFactory {
         };
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "DataAccessFactory")
 
         factory_patterns = [p for p in patterns if p.pattern == DesignPattern.FACTORY]
@@ -76,7 +77,7 @@ public class DataAccessFactory {
 
     def test_abstract_factory_detection(self, detector):
         """Test detection of abstract factory."""
-        code = '''
+        code = """
 public static class LoggerFactory {
     public static ILogger Create(LogLevel level) {
         return level switch {
@@ -86,7 +87,7 @@ public static class LoggerFactory {
         };
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "LoggerFactory")
 
         factory_patterns = [p for p in patterns if p.pattern == DesignPattern.FACTORY]
@@ -98,7 +99,7 @@ class TestBuilderDetection:
 
     def test_builder_detection(self, detector):
         """Test detection of Builder pattern."""
-        code = '''
+        code = """
 public class QueryBuilder {
     private string _from;
     private string _where;
@@ -117,7 +118,7 @@ public class QueryBuilder {
         return $"SELECT * FROM {_from} WHERE {_where}";
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "QueryBuilder")
 
         builder_patterns = [p for p in patterns if p.pattern == DesignPattern.BUILDER]
@@ -130,7 +131,7 @@ class TestDecoratorDetection:
 
     def test_decorator_detection(self, detector):
         """Test detection of Decorator pattern."""
-        code = '''
+        code = """
 public class LoggingDecorator : IRepository {
     private readonly IRepository _inner;
     private readonly ILogger _logger;
@@ -145,10 +146,12 @@ public class LoggingDecorator : IRepository {
         return await _inner.GetUser(id);
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "LoggingDecorator")
 
-        decorator_patterns = [p for p in patterns if p.pattern == DesignPattern.DECORATOR]
+        decorator_patterns = [
+            p for p in patterns if p.pattern == DesignPattern.DECORATOR
+        ]
         assert len(decorator_patterns) > 0
 
 
@@ -157,7 +160,7 @@ class TestAdapterDetection:
 
     def test_adapter_detection(self, detector):
         """Test detection of Adapter pattern."""
-        code = '''
+        code = """
 public class LegacyDataAdapter : IModernDataAccess {
     private readonly LegacyDatabase _legacy;
 
@@ -170,7 +173,7 @@ public class LegacyDataAdapter : IModernDataAccess {
         return new User { Id = legacyUser.UserId, Name = legacyUser.UserName };
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "LegacyDataAdapter")
 
         adapter_patterns = [p for p in patterns if p.pattern == DesignPattern.ADAPTER]
@@ -182,7 +185,7 @@ class TestStrategyDetection:
 
     def test_strategy_detection(self, detector):
         """Test detection of Strategy pattern."""
-        code = '''
+        code = """
 public class PaymentProcessor {
     private IPaymentStrategy strategy;
 
@@ -194,7 +197,7 @@ public class PaymentProcessor {
         await strategy.Execute(amount);
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "PaymentProcessor")
 
         strategy_patterns = [p for p in patterns if p.pattern == DesignPattern.STRATEGY]
@@ -206,7 +209,7 @@ class TestObserverDetection:
 
     def test_observer_detection(self, detector):
         """Test detection of Observer pattern."""
-        code = '''
+        code = """
 public class EventPublisher {
     public event EventHandler<MessageEventArgs> MessageReceived;
 
@@ -218,7 +221,7 @@ public class EventPublisher {
 public class MessageEventArgs : EventArgs {
     public string Message { get; set; }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "EventPublisher")
 
         observer_patterns = [p for p in patterns if p.pattern == DesignPattern.OBSERVER]
@@ -226,7 +229,7 @@ public class MessageEventArgs : EventArgs {
 
     def test_property_changed_observer(self, detector):
         """Test detection of INotifyPropertyChanged observer."""
-        code = '''
+        code = """
 public class User : INotifyPropertyChanged {
     private string _name;
 
@@ -240,7 +243,7 @@ public class User : INotifyPropertyChanged {
 
     public event PropertyChangedEventHandler PropertyChanged;
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "User")
 
         observer_patterns = [p for p in patterns if p.pattern == DesignPattern.OBSERVER]
@@ -252,7 +255,7 @@ class TestCommandDetection:
 
     def test_command_detection(self, detector):
         """Test detection of Command pattern."""
-        code = '''
+        code = """
 public class CreateUserCommand : ICommand {
     public string Name { get; set; }
     public string Email { get; set; }
@@ -267,7 +270,7 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand> {
         // Rollback logic
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "CreateUserCommandHandler")
 
         command_patterns = [p for p in patterns if p.pattern == DesignPattern.COMMAND]
@@ -279,7 +282,7 @@ class TestRepositoryDetection:
 
     def test_repository_detection(self, detector):
         """Test detection of Repository pattern."""
-        code = '''
+        code = """
 public class UserRepository : IRepository<User> {
     private readonly DbContext _context;
 
@@ -298,7 +301,7 @@ public class UserRepository : IRepository<User> {
         await _context.SaveChangesAsync();
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "UserRepository")
 
         repo_patterns = [p for p in patterns if p.pattern == DesignPattern.REPOSITORY]
@@ -311,7 +314,7 @@ class TestUnitOfWorkDetection:
 
     def test_unit_of_work_detection(self, detector):
         """Test detection of Unit of Work pattern."""
-        code = '''
+        code = """
 public class UnitOfWork : IUnitOfWork {
     private readonly DbContext _context;
 
@@ -330,7 +333,7 @@ public class UnitOfWork : IUnitOfWork {
         await _context.Database.CommitTransactionAsync();
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "UnitOfWork")
 
         uow_patterns = [p for p in patterns if p.pattern == DesignPattern.UNIT_OF_WORK]
@@ -342,7 +345,7 @@ class TestCQRSDetection:
 
     def test_cqrs_detection(self, detector):
         """Test detection of CQRS pattern."""
-        code = '''
+        code = """
 public class GetUserByIdQuery : IQuery<User> {
     public int Id { get; set; }
 }
@@ -362,8 +365,8 @@ public class CreateUserCommandHandler : ICommandHandler<CreateUserCommand> {
         // Create user
     }
 }
-'''
-        patterns = detector.detect_patterns(code, "QueryHandler")
+"""
+        detector.detect_patterns(code, "QueryHandler")
 
         # May or may not detect depending on what snippet is analyzed
 
@@ -373,7 +376,7 @@ class TestPubSubDetection:
 
     def test_pubsub_detection(self, detector):
         """Test detection of Pub/Sub pattern."""
-        code = '''
+        code = """
 public class EventBus : IEventBus {
     private readonly Dictionary<Type, List<Delegate>> _subscribers = new();
 
@@ -393,7 +396,7 @@ public class EventBus : IEventBus {
         }
     }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "EventBus")
 
         pubsub_patterns = [p for p in patterns if p.pattern == DesignPattern.PUBSUB]
@@ -405,7 +408,7 @@ class TestMultiplePatternDetection:
 
     def test_multiple_patterns(self, detector):
         """Test detection of multiple patterns."""
-        code = '''
+        code = """
 public class ConfigurationBuilder {
     private Dictionary<string, string> _settings = new();
 
@@ -428,7 +431,7 @@ public class Configuration : IConfiguration {
 
     public string Get(string key) => _settings.GetValueOrDefault(key);
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "ConfigurationBuilder")
 
         builder_patterns = [p for p in patterns if p.pattern == DesignPattern.BUILDER]
@@ -443,14 +446,14 @@ class TestPatternConfidence:
 
     def test_high_confidence_pattern(self, detector):
         """Test that clear patterns have high confidence."""
-        code = '''
+        code = """
 public class Repository : IRepository {
     public async Task<User> Get(int id) { }
     public async Task Add(User user) { }
     public async Task Remove(int id) { }
     public async Task Update(User user) { }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "Repository")
 
         if patterns:
@@ -459,11 +462,11 @@ public class Repository : IRepository {
 
     def test_low_confidence_pattern(self, detector):
         """Test that unclear patterns have lower confidence."""
-        code = '''
+        code = """
 public class Helper {
     public void DoSomething() { }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "Helper")
 
         # Generic code shouldn't match many patterns
@@ -475,13 +478,13 @@ class TestPatternIndicators:
 
     def test_singleton_indicators(self, detector):
         """Test that singleton indicators are found."""
-        code = '''
+        code = """
 public class Singleton {
     private static readonly Singleton instance = new();
     private Singleton() { }
     public static Singleton Instance => instance;
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "Singleton")
 
         singleton = [p for p in patterns if p.pattern == DesignPattern.SINGLETON]
@@ -490,15 +493,18 @@ public class Singleton {
 
     def test_repository_indicators(self, detector):
         """Test that repository indicators are found."""
-        code = '''
+        code = """
 public class UserRepository : IRepository<User> {
     public async Task<User> Get(int id) { }
     public async Task Add(User user) { }
     public async Task Remove(int id) { }
 }
-'''
+"""
         patterns = detector.detect_patterns(code, "UserRepository")
 
         repo = [p for p in patterns if p.pattern == DesignPattern.REPOSITORY]
         if repo:
-            assert "CRUD methods" in repo[0].indicators or "Repository/DAO in name" in repo[0].indicators
+            assert (
+                "CRUD methods" in repo[0].indicators
+                or "Repository/DAO in name" in repo[0].indicators
+            )

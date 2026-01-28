@@ -476,9 +476,11 @@ class CSharpSemanticAnalyzer:
         lcom = 1.0 - (total_accesses / max_accesses)
         return round(lcom, 3)
 
-    def _find_method_end(self, content: str, start: int, max_chars: int = 500_000) -> int:
+    def _find_method_end(
+        self, content: str, start: int, max_chars: int = 500_000
+    ) -> int:
         """Find the end of a C# method by counting braces."""
-        from csharp_code_parser import CSharpCodeParser, BraceFindMode
+        from csharp_code_parser import BraceFindMode, CSharpCodeParser
 
         result = CSharpCodeParser.find_block_end(
             content=content,
@@ -495,81 +497,81 @@ class CSharpSemanticAnalyzer:
     def _remove_comments_and_strings_safe(self, content: str) -> str:
         """Remove comments and string literals using state machine."""
         result = []
-        state = 'CODE'
+        state = "CODE"
         i = 0
         length = len(content)
 
         while i < length:
             char = content[i]
-            next_char = content[i + 1] if i + 1 < length else ''
+            next_char = content[i + 1] if i + 1 < length else ""
 
-            if state == 'CODE':
-                if char == '/' and next_char == '/':
-                    state = 'LINE_COMMENT'
+            if state == "CODE":
+                if char == "/" and next_char == "/":
+                    state = "LINE_COMMENT"
                     i += 2
                     continue
-                elif char == '/' and next_char == '*':
-                    state = 'BLOCK_COMMENT'
+                elif char == "/" and next_char == "*":
+                    state = "BLOCK_COMMENT"
                     i += 2
                     continue
-                elif char == '@' and next_char == '"':
-                    state = 'VERBATIM_STRING'
+                elif char == "@" and next_char == '"':
+                    state = "VERBATIM_STRING"
                     i += 2
                     continue
                 elif char == '"':
-                    state = 'STRING'
+                    state = "STRING"
                     i += 1
                     continue
                 elif char == "'":
-                    state = 'CHAR'
+                    state = "CHAR"
                     i += 1
                     continue
                 else:
                     result.append(char)
                     i += 1
 
-            elif state == 'LINE_COMMENT':
-                if char == '\n':
-                    state = 'CODE'
-                    result.append('\n')
+            elif state == "LINE_COMMENT":
+                if char == "\n":
+                    state = "CODE"
+                    result.append("\n")
                 i += 1
 
-            elif state == 'BLOCK_COMMENT':
-                if char == '*' and next_char == '/':
-                    state = 'CODE'
+            elif state == "BLOCK_COMMENT":
+                if char == "*" and next_char == "/":
+                    state = "CODE"
                     i += 2
                 else:
                     i += 1
 
-            elif state == 'STRING':
-                if char == '\\' and next_char:
+            elif state == "STRING":
+                if char == "\\" and next_char:
                     i += 2
                 elif char == '"':
-                    state = 'CODE'
+                    state = "CODE"
                     i += 1
                 else:
                     i += 1
 
-            elif state == 'VERBATIM_STRING':
+            elif state == "VERBATIM_STRING":
                 if char == '"':
                     if next_char == '"':
                         i += 2
                     else:
-                        state = 'CODE'
+                        state = "CODE"
                         i += 1
                 else:
                     i += 1
 
-            elif state == 'CHAR':
-                if char == '\\' and next_char:
+            elif state == "CHAR":
+                if char == "\\" and next_char:
                     i += 2
                 elif char == "'":
-                    state = 'CODE'
+                    state = "CODE"
                     i += 1
                 else:
                     i += 1
 
-        return ''.join(result)
+        return "".join(result)
 
     def _calculate_cyclomatic_complexity(self, content: str) -> int:
         """Calculate cyclomatic complexity by counting decision points."""
@@ -658,7 +660,10 @@ class CSharpSemanticAnalyzer:
         lines = content.split("\n")
         class_line = 0
         for i, line in enumerate(lines):
-            if f"class {type_info.name}" in line or f"interface {type_info.name}" in line:
+            if (
+                f"class {type_info.name}" in line
+                or f"interface {type_info.name}" in line
+            ):
                 class_line = i
                 break
         type_info.attributes = self.extract_attributes(content, class_line)

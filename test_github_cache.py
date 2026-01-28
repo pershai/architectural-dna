@@ -1,22 +1,23 @@
 """Tests for GitHub API caching."""
 
 import time
-import pytest
 from unittest.mock import Mock, patch
 
-from github_cache import (
-    GitHubCache,
-    CacheEntry,
-    make_repo_list_key,
-    make_file_tree_key,
-    make_file_content_key,
-    make_repository_key,
-)
+import pytest
+
 from constants import (
-    CACHE_TTL_REPO_LIST,
-    CACHE_TTL_FILE_TREE,
     CACHE_TTL_FILE_CONTENT,
+    CACHE_TTL_FILE_TREE,
+    CACHE_TTL_REPO_LIST,
     DEFAULT_CACHE_MAX_SIZE,
+)
+from github_cache import (
+    CacheEntry,
+    GitHubCache,
+    make_file_content_key,
+    make_file_tree_key,
+    make_repo_list_key,
+    make_repository_key,
 )
 
 
@@ -177,7 +178,7 @@ class TestGitHubCache:
                     "enabled": True,
                     "max_size": 500,
                     "ttl_repo_list": 600,
-                    "cache_dir": ".test_cache"
+                    "cache_dir": ".test_cache",
                 }
             }
         }
@@ -188,21 +189,22 @@ class TestGitHubCache:
 
     def test_from_config_disabled(self):
         """Test creating disabled cache from config."""
-        config = {
-            "github": {
-                "cache": {
-                    "enabled": False
-                }
-            }
-        }
+        config = {"github": {"cache": {"enabled": False}}}
         cache = GitHubCache.from_config(config)
         assert cache.enabled is False
 
     def test_get_ttl_for_type(self, cache):
         """Test getting TTL for different cache types."""
-        assert cache.get_ttl_for_type(GitHubCache.PREFIX_REPO_LIST) == CACHE_TTL_REPO_LIST
-        assert cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_TREE) == CACHE_TTL_FILE_TREE
-        assert cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_CONTENT) == CACHE_TTL_FILE_CONTENT
+        assert (
+            cache.get_ttl_for_type(GitHubCache.PREFIX_REPO_LIST) == CACHE_TTL_REPO_LIST
+        )
+        assert (
+            cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_TREE) == CACHE_TTL_FILE_TREE
+        )
+        assert (
+            cache.get_ttl_for_type(GitHubCache.PREFIX_FILE_CONTENT)
+            == CACHE_TTL_FILE_CONTENT
+        )
         assert cache.get_ttl_for_type("unknown") == cache.default_ttl
 
     def test_get_ttl_for_type_from_config(self, cache):
@@ -212,7 +214,7 @@ class TestGitHubCache:
                 "cache": {
                     "ttl_repo_list": 100,
                     "ttl_file_tree": 200,
-                    "ttl_file_content": 300
+                    "ttl_file_content": 300,
                 }
             }
         }
@@ -257,9 +259,7 @@ class TestGitHubCache:
 
         # Create new cache and verify it loads from disk
         new_cache = GitHubCache(
-            max_size=10,
-            default_ttl=60,
-            cache_dir=str(cache_with_disk.cache_dir)
+            max_size=10, default_ttl=60, cache_dir=str(cache_with_disk.cache_dir)
         )
         assert new_cache.get("key1") == {"data": "test"}
 
@@ -329,7 +329,7 @@ class TestGitHubClientCacheIntegration:
     @pytest.fixture
     def mock_github(self):
         """Create mock GitHub API objects."""
-        with patch('github_client.Github') as mock:
+        with patch("github_client.Github") as mock:
             mock_user = Mock()
             mock_user.login = "testuser"
             mock_user.get_repos.return_value = []
@@ -344,15 +344,17 @@ class TestGitHubClientCacheIntegration:
     def client_with_cache(self, mock_github):
         """Create a GitHubClient with caching."""
         from github_client import GitHubClient
+
         cache = GitHubCache(max_size=100, default_ttl=60, cache_dir=None)
-        with patch.dict('os.environ', {'GITHUB_TOKEN': 'test-token'}):
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}):
             client = GitHubClient(cache=cache)
             return client
 
     def test_client_creates_default_cache(self, mock_github):
         """Test that client creates a cache if not provided."""
         from github_client import GitHubClient
-        with patch.dict('os.environ', {'GITHUB_TOKEN': 'test-token'}):
+
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}):
             client = GitHubClient()
             assert client.cache is not None
             assert isinstance(client.cache, GitHubCache)
@@ -360,8 +362,9 @@ class TestGitHubClientCacheIntegration:
     def test_client_uses_provided_cache(self, mock_github):
         """Test that client uses provided cache."""
         from github_client import GitHubClient
+
         cache = GitHubCache(max_size=50, enabled=False)
-        with patch.dict('os.environ', {'GITHUB_TOKEN': 'test-token'}):
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}):
             client = GitHubClient(cache=cache)
             assert client.cache is cache
             assert client.cache.max_size == 50

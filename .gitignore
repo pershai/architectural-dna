@@ -90,6 +90,16 @@ test_*.py
 !test_tools.py
 !test_models.py
 !test_utils.py
+!test_csharp*.py
+!test_pattern_integration.py
+!test_batch*.py
+!test_embedding_manager.py
+!test_github_cache.py
+!test_llm_analyzer.py
+!test_pattern_extractor.py
+!test_repository_tool.py
+!test_resync_all.py
+!test_scaffolder.py
 
 # Lock files (generated)
 requirements.lock

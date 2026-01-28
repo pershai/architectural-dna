@@ -1,13 +1,14 @@
 """Tests for ProjectScaffolder and ScaffoldTool."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from models import ProjectStructure
 from scaffolder import ProjectScaffolder
 from tools.scaffold_tool import ScaffoldTool
-from models import ProjectStructure
 
 
 class TestProjectScaffolder:
@@ -20,14 +21,16 @@ class TestProjectScaffolder:
     @pytest.fixture
     def scaffolder_no_llm(self, mock_qdrant):
         """Scaffolder without LLM (no API key)."""
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             return ProjectScaffolder(mock_qdrant, "test_collection")
 
     @pytest.fixture
     def scaffolder_with_llm(self, mock_qdrant):
         """Scaffolder with LLM."""
-        with patch('scaffolder.genai') as mock_genai:
-            return ProjectScaffolder(mock_qdrant, "test_collection", config=None, gemini_api_key="test-key")
+        with patch("scaffolder.genai"):
+            return ProjectScaffolder(
+                mock_qdrant, "test_collection", config=None, gemini_api_key="test-key"
+            )
 
     # ==========================================================================
     # Initialization tests
@@ -35,7 +38,7 @@ class TestProjectScaffolder:
 
     def test_init_without_api_key(self, mock_qdrant):
         """Test initialization without API key."""
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             scaffolder = ProjectScaffolder(mock_qdrant, "test_collection")
 
             assert scaffolder.client is None
@@ -43,8 +46,10 @@ class TestProjectScaffolder:
 
     def test_init_with_api_key(self, mock_qdrant):
         """Test initialization with API key."""
-        with patch('scaffolder.genai') as mock_genai:
-            scaffolder = ProjectScaffolder(mock_qdrant, "test", config=None, gemini_api_key="test-key")
+        with patch("scaffolder.genai") as mock_genai:
+            scaffolder = ProjectScaffolder(
+                mock_qdrant, "test", config=None, gemini_api_key="test-key"
+            )
 
             mock_genai.Client.assert_called_once_with(api_key="test-key")
             assert scaffolder.model == "gemini-2.0-flash"
@@ -52,18 +57,22 @@ class TestProjectScaffolder:
     def test_init_with_config_model(self, mock_qdrant):
         """Test initialization reads model from config."""
         config = {"llm": {"model": "gemini-1.5-pro"}}
-        with patch('scaffolder.genai') as mock_genai:
-            scaffolder = ProjectScaffolder(mock_qdrant, "test", config=config, gemini_api_key="test-key")
+        with patch("scaffolder.genai"):
+            scaffolder = ProjectScaffolder(
+                mock_qdrant, "test", config=config, gemini_api_key="test-key"
+            )
 
             assert scaffolder.model == "gemini-1.5-pro"
 
     def test_init_with_env_api_key(self, mock_qdrant):
         """Test initialization with environment API key."""
-        with patch.dict('os.environ', {'GEMINI_API_KEY': 'env-key'}):
-            with patch('scaffolder.genai') as mock_genai:
-                scaffolder = ProjectScaffolder(mock_qdrant, "test")
+        with (
+            patch.dict("os.environ", {"GEMINI_API_KEY": "env-key"}),
+            patch("scaffolder.genai") as mock_genai,
+        ):
+            ProjectScaffolder(mock_qdrant, "test")
 
-                mock_genai.Client.assert_called_once_with(api_key="env-key")
+            mock_genai.Client.assert_called_once_with(api_key="env-key")
 
     # ==========================================================================
     # gather_patterns tests
@@ -73,14 +82,16 @@ class TestProjectScaffolder:
         """Test gathering patterns from Qdrant."""
         mock_qdrant.query.return_value = [Mock(), Mock()]
 
-        patterns = scaffolder_no_llm.gather_patterns("api", ["python", "fastapi"], limit=5)
+        patterns = scaffolder_no_llm.gather_patterns(
+            "api", ["python", "fastapi"], limit=5
+        )
 
         assert len(patterns) == 2
         mock_qdrant.query.assert_called_once()
         call_args = mock_qdrant.query.call_args
-        assert "api" in call_args.kwargs['query_text']
-        assert "python" in call_args.kwargs['query_text']
-        assert call_args.kwargs['limit'] == 5
+        assert "api" in call_args.kwargs["query_text"]
+        assert "python" in call_args.kwargs["query_text"]
+        assert call_args.kwargs["limit"] == 5
 
     def test_gather_patterns_error(self, scaffolder_no_llm, mock_qdrant):
         """Test gather patterns handles errors."""
@@ -97,7 +108,7 @@ class TestProjectScaffolder:
         scaffolder_no_llm.gather_patterns("cli", ["python"])
 
         call_args = mock_qdrant.query.call_args
-        assert "command line" in call_args.kwargs['query_text']
+        assert "command line" in call_args.kwargs["query_text"]
 
     # ==========================================================================
     # generate_structure tests
@@ -116,15 +127,19 @@ class TestProjectScaffolder:
 
     def test_generate_structure_with_llm(self, mock_qdrant):
         """Test structure generation with LLM."""
-        with patch('scaffolder.genai') as mock_genai:
+        with patch("scaffolder.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
             mock_response = MagicMock()
-            mock_response.text = '{"directories": ["src", "tests"], "files": {"README.md": "# Test"}}'
+            mock_response.text = (
+                '{"directories": ["src", "tests"], "files": {"README.md": "# Test"}}'
+            )
             mock_client.models.generate_content.return_value = mock_response
 
             scaffolder = ProjectScaffolder(mock_qdrant, "test", gemini_api_key="key")
-            structure = scaffolder.generate_structure("test-proj", "api", ["python"], [])
+            structure = scaffolder.generate_structure(
+                "test-proj", "api", ["python"], []
+            )
 
             assert structure is not None
             assert structure.name == "test-proj"
@@ -133,13 +148,15 @@ class TestProjectScaffolder:
 
     def test_generate_structure_llm_error_fallback(self, mock_qdrant):
         """Test LLM error falls back to basic structure."""
-        with patch('scaffolder.genai') as mock_genai:
+        with patch("scaffolder.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
             mock_client.models.generate_content.side_effect = Exception("API error")
 
             scaffolder = ProjectScaffolder(mock_qdrant, "test", gemini_api_key="key")
-            structure = scaffolder.generate_structure("test-proj", "api", ["python"], [])
+            structure = scaffolder.generate_structure(
+                "test-proj", "api", ["python"], []
+            )
 
             # Should fall back to basic structure
             assert structure is not None
@@ -187,7 +204,7 @@ class TestProjectScaffolder:
 
     def test_parse_structure_missing_fields(self, scaffolder_no_llm):
         """Test parsing with missing fields returns None or empty."""
-        response = '{}'
+        response = "{}"
 
         structure = scaffolder_no_llm._parse_structure("test", response)
 
@@ -212,7 +229,9 @@ class TestProjectScaffolder:
 
     def test_python_fastapi_structure(self, scaffolder_no_llm):
         """Test Python FastAPI project structure."""
-        structure = scaffolder_no_llm._python_structure("myapp", "api", ["python", "fastapi"])
+        structure = scaffolder_no_llm._python_structure(
+            "myapp", "api", ["python", "fastapi"]
+        )
 
         assert "fastapi" in structure.files["requirements.txt"].lower()
         assert "FastAPI" in structure.files["src/main.py"]
@@ -244,12 +263,16 @@ class TestProjectScaffolder:
 
     def test_generate_basic_structure_detects_python(self, scaffolder_no_llm):
         """Test basic structure detects Python."""
-        structure = scaffolder_no_llm._generate_basic_structure("app", "api", ["python"])
+        structure = scaffolder_no_llm._generate_basic_structure(
+            "app", "api", ["python"]
+        )
         assert "requirements.txt" in structure.files
 
     def test_generate_basic_structure_detects_node(self, scaffolder_no_llm):
         """Test basic structure detects Node."""
-        structure = scaffolder_no_llm._generate_basic_structure("app", "api", ["typescript"])
+        structure = scaffolder_no_llm._generate_basic_structure(
+            "app", "api", ["typescript"]
+        )
         assert "package.json" in structure.files
 
     def test_generate_basic_structure_detects_java(self, scaffolder_no_llm):
@@ -266,10 +289,7 @@ class TestProjectScaffolder:
         structure = ProjectStructure(
             name="test-project",
             directories=["src", "tests"],
-            files={
-                "README.md": "# Test",
-                "src/main.py": "print('hello')"
-            }
+            files={"README.md": "# Test", "src/main.py": "print('hello')"},
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -295,11 +315,7 @@ class TestScaffoldTool:
 
     @pytest.fixture
     def test_config(self):
-        return {
-            "scaffolding": {
-                "output_dir": "./generated"
-            }
-        }
+        return {"scaffolding": {"output_dir": "./generated"}}
 
     @pytest.fixture
     def tool(self, mock_qdrant_client, test_config):
@@ -308,12 +324,10 @@ class TestScaffoldTool:
     def test_scaffold_project_success(self, tool):
         """Test successful project scaffolding."""
         mock_structure = ProjectStructure(
-            name="test-proj",
-            directories=["src"],
-            files={"README.md": "# Test"}
+            name="test-proj", directories=["src"], files={"README.md": "# Test"}
         )
 
-        with patch.object(tool, 'get_scaffolder') as mock_get_scaffolder:
+        with patch.object(tool, "get_scaffolder") as mock_get_scaffolder:
             mock_scaffolder = Mock()
             mock_scaffolder.gather_patterns.return_value = []
             mock_scaffolder.generate_structure.return_value = mock_structure
@@ -331,19 +345,19 @@ class TestScaffoldTool:
     def test_scaffold_project_custom_output_dir(self, tool):
         """Test scaffolding with custom output directory."""
         mock_structure = ProjectStructure(
-            name="test-proj",
-            directories=["src"],
-            files={"README.md": "# Test"}
+            name="test-proj", directories=["src"], files={"README.md": "# Test"}
         )
 
-        with patch.object(tool, 'get_scaffolder') as mock_get_scaffolder:
+        with patch.object(tool, "get_scaffolder") as mock_get_scaffolder:
             mock_scaffolder = Mock()
             mock_scaffolder.gather_patterns.return_value = []
             mock_scaffolder.generate_structure.return_value = mock_structure
             mock_scaffolder.write_project.return_value = Path("/custom/test-proj")
             mock_get_scaffolder.return_value = mock_scaffolder
 
-            result = tool.scaffold_project("test-proj", "api", "python", output_dir="/custom")
+            result = tool.scaffold_project(
+                "test-proj", "api", "python", output_dir="/custom"
+            )
 
             assert "[OK]" in result
             # Verify write_project was called with custom path
@@ -352,7 +366,7 @@ class TestScaffoldTool:
 
     def test_scaffold_project_generate_failure(self, tool):
         """Test handling structure generation failure."""
-        with patch.object(tool, 'get_scaffolder') as mock_get_scaffolder:
+        with patch.object(tool, "get_scaffolder") as mock_get_scaffolder:
             mock_scaffolder = Mock()
             mock_scaffolder.gather_patterns.return_value = []
             mock_scaffolder.generate_structure.return_value = None
@@ -365,7 +379,7 @@ class TestScaffoldTool:
 
     def test_scaffold_project_error(self, tool):
         """Test handling general errors."""
-        with patch.object(tool, 'get_scaffolder') as mock_get_scaffolder:
+        with patch.object(tool, "get_scaffolder") as mock_get_scaffolder:
             mock_get_scaffolder.side_effect = Exception("Scaffolder error")
 
             result = tool.scaffold_project("test-proj", "api", "python")
@@ -375,13 +389,9 @@ class TestScaffoldTool:
 
     def test_scaffold_project_parses_tech_stack(self, tool):
         """Test that tech stack is properly parsed."""
-        mock_structure = ProjectStructure(
-            name="test",
-            directories=[],
-            files={}
-        )
+        mock_structure = ProjectStructure(name="test", directories=[], files={})
 
-        with patch.object(tool, 'get_scaffolder') as mock_get_scaffolder:
+        with patch.object(tool, "get_scaffolder") as mock_get_scaffolder:
             mock_scaffolder = Mock()
             mock_scaffolder.gather_patterns.return_value = []
             mock_scaffolder.generate_structure.return_value = mock_structure
@@ -392,5 +402,5 @@ class TestScaffoldTool:
 
             # Verify tech stack was parsed correctly
             call_args = mock_scaffolder.generate_structure.call_args
-            tech_stack = call_args.kwargs['tech_stack']
+            tech_stack = call_args.kwargs["tech_stack"]
             assert tech_stack == ["python", "fastapi", "postgresql"]

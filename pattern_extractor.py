@@ -424,7 +424,7 @@ class PatternExtractor:
         Returns:
             End line number
         """
-        from csharp_code_parser import CSharpCodeParser, BraceFindMode
+        from csharp_code_parser import BraceFindMode, CSharpCodeParser
 
         result = CSharpCodeParser.find_block_end(
             content=lines, start=start, mode=BraceFindMode.IMMEDIATE

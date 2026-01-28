@@ -1,7 +1,7 @@
 """End-to-end integration tests for C# audit system."""
 
 import pytest
-from pathlib import Path
+
 from csharp_audit_integration import CSharpArchitecturalAuditor
 from csharp_audit_reporter import CSharpAuditReporter
 from models import Language
@@ -20,7 +20,7 @@ def sample_csharp_project(tmp_path):
 
     # Create Program.cs with DI configuration
     program_cs = project_root / "Program.cs"
-    program_cs.write_text('''
+    program_cs.write_text("""
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using SampleApp.Services;
@@ -49,11 +49,11 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
-''')
+""")
 
     # Create UserController
     controller = project_root / "Controllers" / "UserController.cs"
-    controller.write_text('''
+    controller.write_text("""
 using Microsoft.AspNetCore.Mvc;
 using MediatR;
 using SampleApp.Models;
@@ -95,11 +95,11 @@ namespace SampleApp.Controllers {
 
     public record CreateUserRequest(string Name, string Email);
 }
-''')
+""")
 
     # Create UserService
     service = project_root / "Services" / "UserService.cs"
-    service.write_text('''
+    service.write_text("""
 using SampleApp.Data;
 using SampleApp.Models;
 
@@ -135,11 +135,11 @@ namespace SampleApp.Services {
         }
     }
 }
-''')
+""")
 
     # Create UserRepository
     repository = project_root / "Data" / "UserRepository.cs"
-    repository.write_text('''
+    repository.write_text("""
 using Microsoft.EntityFrameworkCore;
 using SampleApp.Models;
 
@@ -176,11 +176,11 @@ namespace SampleApp.Data {
         }
     }
 }
-''')
+""")
 
     # Create DbContext
     db_context = project_root / "Data" / "AppDbContext.cs"
-    db_context.write_text('''
+    db_context.write_text("""
 using Microsoft.EntityFrameworkCore;
 using SampleApp.Models;
 
@@ -191,11 +191,11 @@ namespace SampleApp.Data {
         public DbSet<User> Users { get; set; }
     }
 }
-''')
+""")
 
     # Create Models
     user_model = project_root / "Models" / "User.cs"
-    user_model.write_text('''
+    user_model.write_text("""
 namespace SampleApp.Models {
     public class User {
         public int Id { get; set; }
@@ -206,11 +206,11 @@ namespace SampleApp.Models {
 
     public record UserDto(int Id, string Name, string Email);
 }
-''')
+""")
 
     # Create MediatR Handlers
     handlers = project_root / "Handlers" / "UserHandlers.cs"
-    handlers.write_text('''
+    handlers.write_text("""
 using MediatR;
 using SampleApp.Data;
 using SampleApp.Models;
@@ -251,7 +251,7 @@ namespace SampleApp.Handlers {
         }
     }
 }
-''')
+""")
 
     return project_root
 
@@ -293,6 +293,7 @@ class TestEndToEndAnalysis:
 
         controller = controllers[0]
         from csharp_semantic_analyzer import ArchitecturalRole
+
         assert controller.architectural_role == ArchitecturalRole.CONTROLLER
 
     def test_service_detection_and_roles(self, sample_csharp_project):
@@ -308,6 +309,7 @@ class TestEndToEndAnalysis:
 
         service = services[0]
         from csharp_semantic_analyzer import ArchitecturalRole
+
         assert service.architectural_role == ArchitecturalRole.SERVICE
 
     def test_di_registration_extraction(self, sample_csharp_project):
@@ -339,9 +341,7 @@ class TestEndToEndAnalysis:
 
         # Markdown
         CSharpAuditReporter.generate_markdown_report(
-            audit_result,
-            {t.name: t for t in types},
-            str(md_path)
+            audit_result, {t.name: t for t in types}, str(md_path)
         )
         assert md_path.exists()
         assert md_path.stat().st_size > 0
@@ -437,13 +437,13 @@ class TestErrorHandlingE2E:
         project_root.mkdir()
 
         interface_file = project_root / "Interfaces.cs"
-        interface_file.write_text('''
+        interface_file.write_text("""
 namespace TestApp.Interfaces {
     public interface IService { }
     public interface IRepository { }
     public interface IHandler { }
 }
-''')
+""")
 
         auditor = CSharpArchitecturalAuditor()
         result = auditor.analyze_csharp_project(str(project_root))
@@ -455,7 +455,6 @@ namespace TestApp.Interfaces {
 
     def test_large_project_performance(self, tmp_path):
         """Test performance on project with many files."""
-        import pytest
 
         project_root = tmp_path / "LargeProject"
         project_root.mkdir()
@@ -463,13 +462,13 @@ namespace TestApp.Interfaces {
         # Create multiple files
         for i in range(10):
             file_path = project_root / f"Service{i}.cs"
-            file_path.write_text(f'''
+            file_path.write_text(f"""
 namespace TestApp.Services {{
     public class Service{i} {{
         public void DoWork() {{ }}
     }}
 }}
-''')
+""")
 
         auditor = CSharpArchitecturalAuditor()
 
