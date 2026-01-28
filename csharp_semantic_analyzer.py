@@ -243,9 +243,7 @@ class CSharpSemanticAnalyzer:
                 f"Check file permissions. Using defaults."
             )
         except yaml.YAMLError as e:
-            logger.error(
-                f"Invalid YAML in {config_path}: {e}. Using defaults."
-            )
+            logger.error(f"Invalid YAML in {config_path}: {e}. Using defaults.")
         except Exception as e:
             logger.error(f"Unexpected error loading config: {e}", exc_info=True)
 
@@ -719,24 +717,42 @@ class CSharpSemanticAnalyzer:
                 for p in patterns:
                     try:
                         # Validate pattern structure
-                        if not all(hasattr(p, attr) for attr in ['pattern', 'confidence', 'indicators', 'description']):
-                            logger.warning(f"Invalid pattern structure from detector: {p}")
+                        if not all(
+                            hasattr(p, attr)
+                            for attr in [
+                                "pattern",
+                                "confidence",
+                                "indicators",
+                                "description",
+                            ]
+                        ):
+                            logger.warning(
+                                f"Invalid pattern structure from detector: {p}"
+                            )
                             continue
 
                         # Validate confidence is in valid range
                         confidence = float(p.confidence)
                         if not (0.0 <= confidence <= 1.0):
-                            logger.warning(f"Pattern confidence out of range [0-1]: {confidence}")
+                            logger.warning(
+                                f"Pattern confidence out of range [0-1]: {confidence}"
+                            )
                             continue
 
-                        validated_patterns.append({
-                            "pattern": str(p.pattern.value),
-                            "confidence": confidence,
-                            "indicators": list(p.indicators) if p.indicators else [],
-                            "description": str(p.description),
-                        })
+                        validated_patterns.append(
+                            {
+                                "pattern": str(p.pattern.value),
+                                "confidence": confidence,
+                                "indicators": list(p.indicators)
+                                if p.indicators
+                                else [],
+                                "description": str(p.description),
+                            }
+                        )
                     except (AttributeError, ValueError, TypeError) as pattern_error:
-                        logger.warning(f"Failed to process pattern {p}: {pattern_error}")
+                        logger.warning(
+                            f"Failed to process pattern {p}: {pattern_error}"
+                        )
                         continue
 
                 type_info.design_patterns = validated_patterns
@@ -744,7 +760,7 @@ class CSharpSemanticAnalyzer:
                 # Gracefully skip pattern detection on error, but log it
                 logger.warning(
                     f"Pattern detection failed for type {type_info.name}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
 
         # Store in analyzer

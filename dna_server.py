@@ -469,14 +469,18 @@ def analyze_csharp_project(
 
         if audit_result is None:
             logger.warning(f"No audit result for {project_path}, creating empty result")
-            audit_result = type('obj', (object,), {
-                'total_types': 0,
-                'total_violations': 0,
-                'violations_by_severity': {},
-                'violations_by_rule': {},
-                'violations': [],
-                'metrics': {}
-            })()
+            audit_result = type(
+                "obj",
+                (object,),
+                {
+                    "total_types": 0,
+                    "total_violations": 0,
+                    "violations_by_severity": {},
+                    "violations_by_rule": {},
+                    "violations": [],
+                    "metrics": {},
+                },
+            )()
 
         if not isinstance(types, dict):
             logger.error(f"Invalid types in result: {type(types)}, expected dict")

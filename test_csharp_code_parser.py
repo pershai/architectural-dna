@@ -1,7 +1,6 @@
 """Tests for CSharpCodeParser utility."""
 
-import pytest
-from csharp_code_parser import CSharpCodeParser, BraceFindMode, BraceFindResult
+from csharp_code_parser import BraceFindMode, BraceFindResult, CSharpCodeParser
 
 
 class TestBraceFindingBasic:
@@ -13,7 +12,9 @@ class TestBraceFindingBasic:
         Basic test: find closing brace in simple code block.
         """
         code = "public void Method() {\n    Console.WriteLine();\n}"
-        result = CSharpCodeParser.find_block_end(code, 19, BraceFindMode.WAIT_FOR_OPENING)
+        result = CSharpCodeParser.find_block_end(
+            code, 19, BraceFindMode.WAIT_FOR_OPENING
+        )
 
         assert result.success
         assert result.end_position > 0
@@ -127,7 +128,9 @@ class TestBraceFindingModes:
         WAIT_FOR_OPENING mode should skip until first { is found.
         """
         code = "public void Method()\n{\n    int x = 5;\n}"
-        result = CSharpCodeParser.find_block_end(code, 0, BraceFindMode.WAIT_FOR_OPENING)
+        result = CSharpCodeParser.find_block_end(
+            code, 0, BraceFindMode.WAIT_FOR_OPENING
+        )
 
         assert result.success
 
@@ -137,7 +140,9 @@ class TestBraceFindingModes:
         WAIT_FOR_OPENING should find the first { before starting count.
         """
         code = "// Comment with } brace\n{\n    int x = 5;\n}"
-        result = CSharpCodeParser.find_block_end(code, 0, BraceFindMode.WAIT_FOR_OPENING)
+        result = CSharpCodeParser.find_block_end(
+            code, 0, BraceFindMode.WAIT_FOR_OPENING
+        )
 
         assert result.success
 
@@ -150,11 +155,7 @@ class TestBraceFindingLineBased:
 
         When given lines as list, should return line number not char position.
         """
-        lines = [
-            "public void Method() {",
-            "    Console.WriteLine();",
-            "}"
-        ]
+        lines = ["public void Method() {", "    Console.WriteLine();", "}"]
         result = CSharpCodeParser.find_block_end(lines, 0, BraceFindMode.IMMEDIATE)
 
         assert result.success
@@ -166,13 +167,7 @@ class TestBraceFindingLineBased:
 
         Line-based finding should properly count nested braces across lines.
         """
-        lines = [
-            "{",
-            "    {",
-            "        int x = 5;",
-            "    }",
-            "}"
-        ]
+        lines = ["{", "    {", "        int x = 5;", "    }", "}"]
         result = CSharpCodeParser.find_block_end(lines, 0, BraceFindMode.IMMEDIATE)
 
         assert result.success
@@ -210,7 +205,9 @@ class TestBraceFindingEdgeCases:
         WAIT_FOR_OPENING mode with no opening brace should fail.
         """
         code = "int x = 5;"
-        result = CSharpCodeParser.find_block_end(code, 0, BraceFindMode.WAIT_FOR_OPENING)
+        result = CSharpCodeParser.find_block_end(
+            code, 0, BraceFindMode.WAIT_FOR_OPENING
+        )
 
         assert not result.success
 
@@ -220,7 +217,9 @@ class TestBraceFindingEdgeCases:
         Should fail gracefully when max iterations reached.
         """
         code = "{ " + " " * 600_000  # Very long code
-        result = CSharpCodeParser.find_block_end(code, 0, BraceFindMode.IMMEDIATE, max_iterations=1000)
+        result = CSharpCodeParser.find_block_end(
+            code, 0, BraceFindMode.IMMEDIATE, max_iterations=1000
+        )
 
         assert not result.success
         assert "Exceeded max iterations" in result.reason
@@ -265,7 +264,9 @@ class TestBraceFindingComments:
 
         All braces inside multi-line comment should be ignored.
         """
-        code = "{ /* Comment\n    with { nested } braces\n    and more }\n*/ int x = 5; }"
+        code = (
+            "{ /* Comment\n    with { nested } braces\n    and more }\n*/ int x = 5; }"
+        )
         result = CSharpCodeParser.find_block_end(code, 0, BraceFindMode.IMMEDIATE)
 
         assert result.success
@@ -372,7 +373,9 @@ class TestBraceFindingRealWorldCode:
         Console.WriteLine($"Result: {result}");
     }
 }"""
-        result = CSharpCodeParser.find_block_end(code, code.index('{'), BraceFindMode.IMMEDIATE)
+        result = CSharpCodeParser.find_block_end(
+            code, code.index("{"), BraceFindMode.IMMEDIATE
+        )
 
         assert result.success
 
@@ -389,8 +392,10 @@ class TestBraceFindingRealWorldCode:
         Message = $"Item {x.Id}: {x.Name}"
     });"""
         # This should handle the anonymous type braces correctly
-        first_brace = code.index('{')
-        result = CSharpCodeParser.find_block_end(code, first_brace, BraceFindMode.IMMEDIATE)
+        first_brace = code.index("{")
+        result = CSharpCodeParser.find_block_end(
+            code, first_brace, BraceFindMode.IMMEDIATE
+        )
 
         # Should find the first closing brace of the anonymous type
         assert isinstance(result, BraceFindResult)
@@ -405,8 +410,10 @@ class TestBraceFindingRealWorldCode:
     { "key1", "value with } brace" },
     { "key2", "another { value" }
 };"""
-        first_brace = code.index('{')
-        result = CSharpCodeParser.find_block_end(code, first_brace, BraceFindMode.IMMEDIATE)
+        first_brace = code.index("{")
+        result = CSharpCodeParser.find_block_end(
+            code, first_brace, BraceFindMode.IMMEDIATE
+        )
 
         assert result.success
 
