@@ -225,7 +225,6 @@ class TestPartialClassHandling:
 
         # Note: The aggregate function only works if both partials have the same key
         # This is a limitation of the test setup, so we'll directly test the aggregation logic
-        key = f"{user_part1.namespace}.{user_part1.name}"
         user_part1.partial_locations = [user_part1.file_path, user_part2.file_path]
 
         # Verify it's set
