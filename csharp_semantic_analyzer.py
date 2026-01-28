@@ -222,20 +222,32 @@ class CSharpSemanticAnalyzer:
         """
         try:
             config_file = Path(config_path)
-            if config_file.exists():
-                with open(config_file) as f:
-                    raw_config = yaml.safe_load(f)
-                    csharp_config = raw_config.get("csharp_audit", {})
+            if not config_file.exists():
+                logger.debug(f"Config file not found: {config_path}. Using defaults.")
+                return CSharpAuditConfig().model_dump()
 
-                    # Validate configuration using Pydantic
-                    validated_config = CSharpAuditConfig(**csharp_config)
-                    return validated_config.model_dump()
+            with open(config_file) as f:
+                raw_config = yaml.safe_load(f)
+                if raw_config is None:
+                    raw_config = {}
+                csharp_config = raw_config.get("csharp_audit", {})
 
-        except Exception as e:
-            logger.warning(
-                f"Failed to load/validate config from {config_path}: {e}. "
-                f"Using default configuration."
+                # Validate configuration using Pydantic
+                validated_config = CSharpAuditConfig(**csharp_config)
+                logger.info(f"Loaded config from {config_path}")
+                return validated_config.model_dump()
+
+        except PermissionError:
+            logger.error(
+                f"Permission denied reading config at {config_path}. "
+                f"Check file permissions. Using defaults."
             )
+        except yaml.YAMLError as e:
+            logger.error(
+                f"Invalid YAML in {config_path}: {e}. Using defaults."
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error loading config: {e}", exc_info=True)
 
         # Return validated defaults if config loading fails
         return CSharpAuditConfig().model_dump()
@@ -701,18 +713,39 @@ class CSharpSemanticAnalyzer:
                 patterns = self.pattern_detector.detect_patterns(
                     content, type_info.name
                 )
-                type_info.design_patterns = [
-                    {
-                        "pattern": p.pattern.value,
-                        "confidence": p.confidence,
-                        "indicators": p.indicators,
-                        "description": p.description,
-                    }
-                    for p in patterns
-                ]
-            except Exception:
-                # Gracefully skip pattern detection on error
-                pass
+
+                # Validate and convert patterns
+                validated_patterns = []
+                for p in patterns:
+                    try:
+                        # Validate pattern structure
+                        if not all(hasattr(p, attr) for attr in ['pattern', 'confidence', 'indicators', 'description']):
+                            logger.warning(f"Invalid pattern structure from detector: {p}")
+                            continue
+
+                        # Validate confidence is in valid range
+                        confidence = float(p.confidence)
+                        if not (0.0 <= confidence <= 1.0):
+                            logger.warning(f"Pattern confidence out of range [0-1]: {confidence}")
+                            continue
+
+                        validated_patterns.append({
+                            "pattern": str(p.pattern.value),
+                            "confidence": confidence,
+                            "indicators": list(p.indicators) if p.indicators else [],
+                            "description": str(p.description),
+                        })
+                    except (AttributeError, ValueError, TypeError) as pattern_error:
+                        logger.warning(f"Failed to process pattern {p}: {pattern_error}")
+                        continue
+
+                type_info.design_patterns = validated_patterns
+            except Exception as e:
+                # Gracefully skip pattern detection on error, but log it
+                logger.warning(
+                    f"Pattern detection failed for type {type_info.name}: {e}",
+                    exc_info=True
+                )
 
         # Store in analyzer
         self.types[type_info.name] = type_info

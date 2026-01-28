@@ -52,9 +52,16 @@ class CSharpArchitecturalAuditor:
             if not namespace:
                 namespace = self._extract_namespace(content)
 
+            # Log if no namespace found (valid for file-scoped or global namespaces)
+            if not namespace:
+                logger.debug(
+                    f"No namespace found for {chunk.name} in {file_path}. "
+                    f"May use file-scoped or global namespace."
+                )
+
             type_info = CSharpTypeInfo(
                 name=chunk.name or "Unknown",
-                namespace=namespace,
+                namespace=namespace or "_global_",  # Use marker for empty namespaces
                 file_path=file_path,
                 type_kind=chunk.chunk_type,
                 lines_of_code=chunk.end_line - chunk.start_line,
@@ -107,9 +114,21 @@ class CSharpArchitecturalAuditor:
         if not project_path:
             raise ValueError("project_path cannot be empty")
 
+        if not isinstance(project_path, str):
+            raise TypeError(f"project_path must be string, got {type(project_path)}")
+
         project_root = Path(project_path)
-        if not project_root.exists():
-            raise FileNotFoundError(f"Project path does not exist: {project_path}")
+        try:
+            if not project_root.exists():
+                raise FileNotFoundError(f"Project path does not exist: {project_path}")
+
+            if not project_root.is_dir() and not project_root.is_file():
+                raise ValueError(f"Project path is neither file nor directory: {project_path}")
+        except FileNotFoundError:
+            raise  # Re-raise FileNotFoundError as-is
+        except (PermissionError, OSError) as e:
+            logger.error(f"Cannot access project path {project_path}: {e}")
+            raise ValueError(f"Cannot access project path: {e}") from e
 
         if project_root.is_file():
             project_root = project_root.parent
@@ -159,9 +178,12 @@ class CSharpArchitecturalAuditor:
                             break
                         except UnicodeDecodeError:
                             continue
+                        except (PermissionError, OSError) as e:
+                            logger.warning(f"Cannot read {cs_file}: {e}")
+                            break
 
                     if content is None:
-                        logger.warning(f"Skipping {cs_file}: unsupported encoding")
+                        logger.warning(f"Skipping {cs_file}: unsupported encoding or read error")
                         files_skipped += 1
                         continue
 
@@ -293,7 +315,14 @@ class CSharpArchitecturalAuditor:
         return patterns
 
     def _extract_namespace(self, context: str) -> str:
-        """Extract namespace from context string."""
+        """Extract namespace from context string.
+
+        Returns empty string if no namespace found (file-scoped or global namespace).
+        Logs debug message for visibility.
+        """
+        if not context or not context.strip():
+            return ""
+
         for line in context.split("\n"):
             if line.strip().startswith("namespace "):
                 ns = (
@@ -303,7 +332,10 @@ class CSharpArchitecturalAuditor:
                     .rstrip("{")
                     .strip()
                 )
-                return ns
+                if ns:
+                    return ns
+
+        # No namespace found - this is valid for file-scoped or global namespaces
         return ""
 
     def _extract_base_types(self, content: str) -> list[str]:
@@ -409,11 +441,21 @@ class CSharpArchitecturalAuditor:
 
             # Get repository
             client = GitHubClient(github_token)
-            repo = client.get_repository(repo_name)
-            repo_path = repo.clone_url if hasattr(repo, "clone_url") else None
+            try:
+                repo = client.get_repository(repo_name)
+            except Exception as e:
+                logger.error(f"Failed to fetch repository {repo_name}: {e}")
+                raise ValueError(f"Repository {repo_name} not found or inaccessible") from e
 
+            if repo is None:
+                raise ValueError(f"Repository {repo_name} returned None from GitHub API")
+
+            repo_path = getattr(repo, 'clone_url', None)
             if not repo_path:
-                raise ValueError(f"Could not get clone URL for repository {repo_name}")
+                raise ValueError(
+                    f"Could not get clone URL for repository {repo_name}. "
+                    f"Repository may be empty or inaccessible."
+                )
 
             logger.info(f"Analyzing C# project at: {repo_path}")
 
@@ -456,7 +498,14 @@ class CSharpArchitecturalAuditor:
             repo_path_str = str(Path(temp_dir) / repo_name.split("/")[-1])
             repo_path = Path(repo_path_str)
             if repo_path.exists():
-                shutil.rmtree(repo_path_str, ignore_errors=True)
+                try:
+                    shutil.rmtree(repo_path_str)
+                    logger.debug(f"Cleaned up temporary directory: {repo_path_str}")
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to clean up temporary directory {repo_path_str}: {e}. "
+                        f"Manual cleanup may be required."
+                    )
 
 
 def audit_csharp_project_example(project_path: str, output_dir: str):

@@ -512,9 +512,15 @@ class CSharpAuditEngine:
 
         for audit_method in audit_methods:
             try:
-                all_violations.extend(audit_method())
+                result = audit_method()
+                if not isinstance(result, list):
+                    logger.error(
+                        f"{audit_method.__name__} returned {type(result).__name__} instead of list"
+                    )
+                    continue
+                all_violations.extend(result)
             except Exception as e:
-                logger.error(f"Error in {audit_method.__name__}: {e}")
+                logger.error(f"Error in {audit_method.__name__}: {e}", exc_info=True)
 
         violations_by_severity: defaultdict[str, int] = defaultdict(int)
         violations_by_rule: defaultdict[str, int] = defaultdict(int)

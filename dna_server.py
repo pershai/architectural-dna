@@ -460,11 +460,30 @@ def analyze_csharp_project(
         # Analyze project
         result = auditor.analyze_csharp_project(project_path)
 
+        # Validate analysis result
+        if not result:
+            raise ValueError("Project analysis returned no results")
+
+        audit_result = result.get("audit_result")
+        types = result.get("types", {})
+
+        if audit_result is None:
+            logger.warning(f"No audit result for {project_path}, creating empty result")
+            audit_result = type('obj', (object,), {
+                'total_types': 0,
+                'total_violations': 0,
+                'violations_by_severity': {},
+                'violations_by_rule': {},
+                'violations': [],
+                'metrics': {}
+            })()
+
+        if not isinstance(types, dict):
+            logger.error(f"Invalid types in result: {type(types)}, expected dict")
+            types = {}
+
         # Generate reports
         Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        audit_result = result["audit_result"]
-        types = result["types"]  # Already a Dict[str, CSharpTypeInfo]
 
         # JSON report
         json_path = Path(output_dir) / f"{repo_name}_audit.json"
@@ -509,7 +528,11 @@ Reports Generated:"""
         return summary
 
     except ImportError as e:
-        return f"Error: C# audit modules not available - {e}"
+        logger.warning(f"C# audit module import failed: {e}", exc_info=True)
+        return (
+            f"Error: C# audit module not available: {e}\n"
+            f"This feature requires: pip install -r requirements.txt"
+        )
     except Exception as e:
         logger.error(f"C# project analysis failed: {e}", exc_info=True)
         return f"Error analyzing C# project: {str(e)}"
