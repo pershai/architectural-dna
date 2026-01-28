@@ -319,9 +319,13 @@ class CSharpAuditEngine:
         violations = []
         rule = self.rules["DESIGN_001"]
 
+        # Load thresholds from configuration
         metrics_config = self.config.get("metrics", {})
+        dependencies_config = self.config.get("dependencies", {})
+
         lcom_threshold = metrics_config.get("lcom_threshold", 0.8)
         loc_threshold = metrics_config.get("loc_threshold", 500)
+        max_dependencies = dependencies_config.get("max_per_class", 7)
 
         for type_name, type_info in self.analyzer.types.items():
             reasons = []
@@ -332,8 +336,10 @@ class CSharpAuditEngine:
             if type_info.lines_of_code > loc_threshold:
                 reasons.append(f"Too many lines ({type_info.lines_of_code} LOC)")
 
-            if len(type_info.dependencies) > 10:
-                reasons.append(f"Too many dependencies ({len(type_info.dependencies)})")
+            if len(type_info.dependencies) > max_dependencies:
+                reasons.append(
+                    f"Too many dependencies ({len(type_info.dependencies)} > {max_dependencies})"
+                )
 
             if reasons:
                 violations.append(

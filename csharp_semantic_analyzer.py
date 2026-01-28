@@ -475,102 +475,104 @@ class CSharpSemanticAnalyzer:
         lcom = 1.0 - (total_accesses / max_accesses)
         return round(lcom, 3)
 
-    def _find_method_end(self, content: str, start: int) -> int:
-        """Find the end of a C# method by counting braces, ignoring strings and comments."""
-        brace_count = 0
-        in_method = False
-        i = start
+    def _find_method_end(self, content: str, start: int, max_chars: int = 500_000) -> int:
+        """Find the end of a C# method by counting braces."""
+        from csharp_code_parser import CSharpCodeParser, BraceFindMode
 
-        while i < len(content):
-            # Skip single-line comments
-            if i < len(content) - 1 and content[i : i + 2] == "//":
-                while i < len(content) and content[i] != "\n":
-                    i += 1
-                continue
+        result = CSharpCodeParser.find_block_end(
+            content=content,
+            start=start,
+            mode=BraceFindMode.WAIT_FOR_OPENING,
+            max_iterations=max_chars,
+        )
 
-            # Skip multi-line comments
-            if i < len(content) - 1 and content[i : i + 2] == "/*":
-                i += 2
-                while i < len(content) - 1:
-                    if content[i : i + 2] == "*/":
-                        i += 2
-                        break
-                    i += 1
-                continue
+        if not result.success:
+            logger.warning(f"Method end search failed: {result.reason}")
 
-            # Skip string literals (regular and verbatim)
-            if content[i] == '"':
-                # Check for verbatim string @"..."
-                is_verbatim = i > 0 and content[i - 1] == "@"
-                i += 1
-                while i < len(content):
-                    if content[i] == '"':
-                        # Check for escaped quote in verbatim string ("")
-                        if (
-                            is_verbatim
-                            and i < len(content) - 1
-                            and content[i + 1] == '"'
-                        ):
-                            i += 2
-                            continue
-                        # Check for escaped quote in regular string (\")
-                        if not is_verbatim and i > 0 and content[i - 1] == "\\":
-                            i += 1
-                            continue
-                        i += 1
-                        break
-                    i += 1
-                continue
+        return result.end_position
 
-            # Skip char literals
-            if content[i] == "'":
-                i += 1
-                while i < len(content):
-                    if content[i] == "'" and (i == 0 or content[i - 1] != "\\"):
-                        i += 1
-                        break
-                    i += 1
-                continue
+    def _remove_comments_and_strings_safe(self, content: str) -> str:
+        """Remove comments and string literals using state machine."""
+        result = []
+        state = 'CODE'
+        i = 0
+        length = len(content)
 
-            # Count braces
+        while i < length:
             char = content[i]
-            if char == "{":
-                brace_count += 1
-                in_method = True
-            elif char == "}":
-                brace_count -= 1
-                if in_method and brace_count == 0:
-                    return i + 1
+            next_char = content[i + 1] if i + 1 < length else ''
 
-            i += 1
+            if state == 'CODE':
+                if char == '/' and next_char == '/':
+                    state = 'LINE_COMMENT'
+                    i += 2
+                    continue
+                elif char == '/' and next_char == '*':
+                    state = 'BLOCK_COMMENT'
+                    i += 2
+                    continue
+                elif char == '@' and next_char == '"':
+                    state = 'VERBATIM_STRING'
+                    i += 2
+                    continue
+                elif char == '"':
+                    state = 'STRING'
+                    i += 1
+                    continue
+                elif char == "'":
+                    state = 'CHAR'
+                    i += 1
+                    continue
+                else:
+                    result.append(char)
+                    i += 1
 
-        # If we didn't find closing brace, return a reasonable default
-        return min(start + CSHARP_CONSTANTS.METHOD_REGION_FALLBACK, len(content))
+            elif state == 'LINE_COMMENT':
+                if char == '\n':
+                    state = 'CODE'
+                    result.append('\n')
+                i += 1
+
+            elif state == 'BLOCK_COMMENT':
+                if char == '*' and next_char == '/':
+                    state = 'CODE'
+                    i += 2
+                else:
+                    i += 1
+
+            elif state == 'STRING':
+                if char == '\\' and next_char:
+                    i += 2
+                elif char == '"':
+                    state = 'CODE'
+                    i += 1
+                else:
+                    i += 1
+
+            elif state == 'VERBATIM_STRING':
+                if char == '"':
+                    if next_char == '"':
+                        i += 2
+                    else:
+                        state = 'CODE'
+                        i += 1
+                else:
+                    i += 1
+
+            elif state == 'CHAR':
+                if char == '\\' and next_char:
+                    i += 2
+                elif char == "'":
+                    state = 'CODE'
+                    i += 1
+                else:
+                    i += 1
+
+        return ''.join(result)
 
     def _calculate_cyclomatic_complexity(self, content: str) -> int:
-        """
-        Calculate cyclomatic complexity by counting decision points.
-        Uses iterative approach to safely remove comments and strings.
-        """
-        # Remove single-line comments
-        content_no_comments = re.sub(r"//.*?$", "", content, flags=re.MULTILINE)
-
-        # Remove multi-line comments iteratively to avoid greedy matching issues
-        # This prevents accidentally removing code between separate comment blocks
-        max_iterations = 100  # Safety limit to prevent infinite loops
-        iteration = 0
-        while iteration < max_iterations:
-            new_content = re.sub(
-                r"/\*.*?\*/", "", content_no_comments, count=1, flags=re.DOTALL
-            )
-            if new_content == content_no_comments:
-                break  # No more comments found
-            content_no_comments = new_content
-            iteration += 1
-
-        # Remove string literals (including verbatim strings @"...") to avoid false matches
-        content_cleaned = re.sub(r'@?"(?:[^"\\]|\\.)*"', "", content_no_comments)
-        content_cleaned = re.sub(r"@?'(?:[^'\\]|\\.)*'", "", content_cleaned)
+        """Calculate cyclomatic complexity by counting decision points."""
+        content_cleaned = self._remove_comments_and_strings_safe(content)
 
         # Count decision points with word boundaries
         decision_patterns = [

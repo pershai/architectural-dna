@@ -70,9 +70,19 @@ class CSharpAuditReporter:
 
     @staticmethod
     def generate_markdown_report(
-        result: AuditResult, types: dict[str, CSharpTypeInfo], output_path: str
+        result: AuditResult,
+        types: dict[str, CSharpTypeInfo],
+        output_path: str,
+        config: dict | None = None,
     ):
         """Generate Markdown format audit report."""
+        # Load thresholds from configuration
+        if config is None:
+            config = {}
+        metrics_config = config.get("metrics", {})
+        lcom_threshold = metrics_config.get("lcom_threshold", 0.8)
+        loc_threshold = metrics_config.get("loc_threshold", 500)
+
         md = []
 
         # Header
@@ -145,7 +155,9 @@ class CSharpAuditReporter:
             md.append(f"| {type_name} | {count} |")
 
         god_objects = [
-            t for t in types.values() if t.lcom_score > 0.8 or t.lines_of_code > 500
+            t
+            for t in types.values()
+            if t.lcom_score > lcom_threshold or t.lines_of_code > loc_threshold
         ]
         if god_objects:
             md.append("\n### Potential God Objects")

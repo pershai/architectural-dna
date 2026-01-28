@@ -472,7 +472,9 @@ def analyze_csharp_project(
 
         # Markdown report
         md_path = Path(output_dir) / f"{repo_name}_audit.md"
-        CSharpAuditReporter.generate_markdown_report(audit_result, types, str(md_path))
+        CSharpAuditReporter.generate_markdown_report(
+            audit_result, types, str(md_path), auditor.audit_engine.config
+        )
 
         # SARIF report (for IDE integration)
         sarif_path = Path(output_dir) / f"{repo_name}_audit.sarif"

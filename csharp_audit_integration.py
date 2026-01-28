@@ -216,7 +216,9 @@ class CSharpArchitecturalAuditor:
         logger.info(f"JSON report: {json_path}")
 
         md_path = output_path / "audit_report.md"
-        self.reporter.generate_markdown_report(audit_result, types, str(md_path))
+        self.reporter.generate_markdown_report(
+            audit_result, types, str(md_path), self.audit_engine.config
+        )
         logger.info(f"Markdown report: {md_path}")
 
         sarif_path = output_path / "audit_report.sarif"
@@ -234,10 +236,15 @@ class CSharpArchitecturalAuditor:
         if not isinstance(types, list):
             raise TypeError(f"Expected list of CSharpTypeInfo, got {type(types)}")
 
+        # Load threshold from configuration
+        metrics_config = self.audit_engine.config.get("metrics", {})
+        lcom_threshold = metrics_config.get("lcom_threshold", 0.8)
+
         patterns = []
 
         for type_info in types:
-            if type_info.lcom_score > 0.8:
+            # Skip God Objects (low cohesion) using config threshold
+            if type_info.lcom_score > lcom_threshold:
                 continue
 
             category_map = {
@@ -312,26 +319,42 @@ class CSharpArchitecturalAuditor:
 
     def _calculate_quality_score(self, type_info: CSharpTypeInfo) -> int:
         """Calculate quality score (1-10) based on metrics."""
+        # Load thresholds from configuration
+        metrics_config = self.audit_engine.config.get("metrics", {})
+        dependencies_config = self.audit_engine.config.get("dependencies", {})
+
+        lcom_threshold = metrics_config.get("lcom_threshold", 0.8)
+        loc_threshold = metrics_config.get("loc_threshold", 500)
+        max_dependencies = dependencies_config.get("max_per_class", 7)
+
         score = 10
 
-        if type_info.lcom_score > 0.8:
+        # LCOM penalties (using config thresholds)
+        if type_info.lcom_score > lcom_threshold:
             score -= 3
-        elif type_info.lcom_score > 0.6:
+        elif type_info.lcom_score > (lcom_threshold * 0.75):
             score -= 1
 
-        if type_info.cyclomatic_complexity > 50:
+        # Cyclomatic complexity penalties (using thresholds derived from config)
+        complexity_critical = metrics_config.get("cyclomatic_complexity_limit", 15) * 3
+        complexity_warning = metrics_config.get("cyclomatic_complexity_limit", 15) * 2
+        if type_info.cyclomatic_complexity > complexity_critical:
             score -= 2
-        elif type_info.cyclomatic_complexity > 30:
+        elif type_info.cyclomatic_complexity > complexity_warning:
             score -= 1
 
-        if type_info.lines_of_code > 500:
+        # LOC penalties (using config thresholds)
+        if type_info.lines_of_code > loc_threshold:
             score -= 2
-        elif type_info.lines_of_code > 300:
+        elif type_info.lines_of_code > (loc_threshold * 0.6):
             score -= 1
 
-        if len(type_info.dependencies) > 15:
+        # Dependencies penalties (using config thresholds)
+        max_deps_critical = max_dependencies * 2
+        max_deps_warning = max_dependencies + 3
+        if len(type_info.dependencies) > max_deps_critical:
             score -= 2
-        elif len(type_info.dependencies) > 10:
+        elif len(type_info.dependencies) > max_deps_warning:
             score -= 1
 
         if type_info.architectural_role != ArchitecturalRole.UNKNOWN:

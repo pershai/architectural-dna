@@ -799,4 +799,3 @@ SOFTWARE.
 - [Qdrant](https://qdrant.tech/) - Vector database
 - [Google Gemini](https://ai.google.dev/) - LLM for analysis
 - [tree-sitter](https://tree-sitter.github.io/) - Code parsing
-- [Pydantic](https://docs.pydantic.dev/) - Data validation for C# audit configuration
