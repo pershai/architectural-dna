@@ -359,3 +359,122 @@ def detector():
     from csharp_pattern_detector import CSharpPatternDetector
 
     return CSharpPatternDetector()
+
+
+@pytest.fixture
+def sample_csharp_project(tmp_path):
+    """Create a sample C# project structure in a temporary directory."""
+    # Create directory structure
+    project_dir = tmp_path / "SampleApp"
+    project_dir.mkdir()
+
+    controllers_dir = project_dir / "Controllers"
+    controllers_dir.mkdir()
+
+    services_dir = project_dir / "Services"
+    services_dir.mkdir()
+
+    data_dir = project_dir / "Data"
+    data_dir.mkdir()
+
+    # Create Program.cs
+    (project_dir / "Program.cs").write_text("""
+using Microsoft.Extensions.DependencyInjection;
+using SampleApp.Services;
+using SampleApp.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<AppDbContext>();
+
+var app = builder.Build();
+app.MapControllers();
+app.Run();
+""")
+
+    # Create controller
+    (controllers_dir / "UserController.cs").write_text("""
+using Microsoft.AspNetCore.Mvc;
+using SampleApp.Services;
+
+namespace SampleApp.Controllers {
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UserController {
+        private readonly IUserService userService;
+
+        public UserController(IUserService service) {
+            userService = service;
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetUser(int id) {
+            var user = await userService.GetUserById(id);
+            return Ok(user);
+        }
+    }
+}
+""")
+
+    # Create service interface and implementation
+    (services_dir / "IUserService.cs").write_text("""
+using SampleApp.Models;
+
+namespace SampleApp.Services {
+    public interface IUserService {
+        Task<User> GetUserById(int id);
+    }
+}
+""")
+
+    (services_dir / "UserService.cs").write_text("""
+using SampleApp.Models;
+using SampleApp.Data;
+
+namespace SampleApp.Services {
+    public class UserService : IUserService {
+        private readonly IUserRepository repository;
+
+        public UserService(IUserRepository repo) {
+            repository = repo;
+        }
+
+        public async Task<User> GetUserById(int id) {
+            return await repository.GetById(id);
+        }
+    }
+}
+""")
+
+    # Create repository
+    (data_dir / "IUserRepository.cs").write_text("""
+using SampleApp.Models;
+
+namespace SampleApp.Data {
+    public interface IUserRepository {
+        Task<User> GetById(int id);
+    }
+}
+""")
+
+    (data_dir / "UserRepository.cs").write_text("""
+using SampleApp.Models;
+
+namespace SampleApp.Data {
+    public class UserRepository : IUserRepository {
+        private readonly AppDbContext context;
+
+        public UserRepository(AppDbContext ctx) {
+            context = ctx;
+        }
+
+        public async Task<User> GetById(int id) {
+            return await context.Users.FindAsync(id);
+        }
+    }
+}
+""")
+
+    return project_dir

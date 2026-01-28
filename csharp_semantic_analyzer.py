@@ -246,7 +246,8 @@ class CSharpSemanticAnalyzer:
         """Extract C# attributes from code."""
         attributes = []
         lines = content.split("\n")
-        attr_pattern = re.compile(r"^\s*\[(\w+)(?:\(([^]]*)\))?\]")
+        # Match attributes like [Name] or [Name(...)] - note parentheses can contain nested brackets
+        attr_pattern = re.compile(r"^\s*\[(\w+)(?:\(([^)]*)\))?\]")
 
         search_start = max(
             0, start_line - CSHARP_CONSTANTS.ATTRIBUTE_SEARCH_LINES_BEFORE
@@ -653,6 +654,15 @@ class CSharpSemanticAnalyzer:
 
     def analyze_type(self, type_info: CSharpTypeInfo, content: str) -> CSharpTypeInfo:
         """Perform deep analysis on a C# type."""
+        # Extract attributes from content - find class definition line first
+        lines = content.split("\n")
+        class_line = 0
+        for i, line in enumerate(lines):
+            if f"class {type_info.name}" in line or f"interface {type_info.name}" in line:
+                class_line = i
+                break
+        type_info.attributes = self.extract_attributes(content, class_line)
+
         # Extract members
         type_info.members = self.extract_members(content)
 
@@ -672,6 +682,13 @@ class CSharpSemanticAnalyzer:
 
         # Calculate cyclomatic complexity with proper regex to avoid false positives
         type_info.cyclomatic_complexity = self._calculate_cyclomatic_complexity(content)
+
+        # Determine architectural role if not already set
+        if type_info.architectural_role == ArchitecturalRole.UNKNOWN:
+            base_types = [m.return_type for m in type_info.members if m.return_type]
+            type_info.architectural_role = self.determine_architectural_role(
+                type_info.attributes, type_info.name, base_types
+            )
 
         # Detect design patterns
         if self.config.get("patterns", {}).get("detect_design_patterns", True):
