@@ -275,7 +275,7 @@ class TestEndToEndAnalysis:
         assert len(types) > 0
 
         # Verify key types detected
-        type_names = {t.name for t in types}
+        type_names = {t.name for t in types.values()}
         assert "UserController" in type_names
         assert "UserService" in type_names
         assert "UserRepository" in type_names
@@ -288,7 +288,7 @@ class TestEndToEndAnalysis:
         types = result["types"]
 
         # Find controller
-        controllers = [t for t in types if t.name == "UserController"]
+        controllers = [t for t in types.values() if t.name == "UserController"]
         assert len(controllers) > 0
 
         controller = controllers[0]
@@ -304,7 +304,7 @@ class TestEndToEndAnalysis:
         types = result["types"]
 
         # Find service
-        services = [t for t in types if t.name == "UserService"]
+        services = [t for t in types.values() if t.name == "UserService"]
         assert len(services) > 0
 
         service = services[0]
@@ -341,7 +341,7 @@ class TestEndToEndAnalysis:
 
         # Markdown
         CSharpAuditReporter.generate_markdown_report(
-            audit_result, {t.name: t for t in types}, str(md_path)
+            audit_result, types, str(md_path)
         )
         assert md_path.exists()
         assert md_path.stat().st_size > 0
@@ -429,7 +429,7 @@ class TestErrorHandlingE2E:
 
         # Should return valid result even for empty project
         assert result["types"] is not None
-        assert isinstance(result["types"], list)
+        assert isinstance(result["types"], dict)
 
     def test_project_with_only_interfaces(self, tmp_path):
         """Test project with only interface definitions."""

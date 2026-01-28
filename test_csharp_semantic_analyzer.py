@@ -220,7 +220,7 @@ class TestDIExtraction:
         assert len(analyzer.di_registrations) > 0
         # Should have IUserService → UserService mapping
         assert any(
-            "UserService" in str(reg) for reg in analyzer.di_registrations.values()
+            "UserService" in str(reg) for reg in analyzer.di_registrations
         )
 
 

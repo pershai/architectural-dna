@@ -220,9 +220,11 @@ class TestGodObjectDetection:
 
         violations = audit_engine.audit_god_objects()
 
-        # Should have multiple violations for this type
+        # Should have at least one violation for this type (combined LCOM and LOC)
         obj_violations = [v for v in violations if v.type_name == "MonolithService"]
-        assert len(obj_violations) >= 2  # Both LCOM and LOC violations
+        assert len(obj_violations) >= 1
+        # Verify the violation mentions both issues
+        assert "LCOM" in obj_violations[0].message and "LOC" in obj_violations[0].message
 
     def test_clean_code_no_god_object(self, audit_engine):
         """Test that clean code doesn't trigger God Object violation."""

@@ -262,12 +262,26 @@ class CSharpAuditEngine:
         return violations
 
     def detect_cyclic_dependencies(self) -> list[ArchitecturalViolation]:
-        """Detect cyclic dependencies between namespaces.
+        """Detect cyclic dependencies between namespaces and self-references.
 
         Thread-safe implementation that returns cycle instead of mutating shared state.
         """
         violations = []
         rule = self.rules["ARCH_001"]
+
+        # First, detect type-level self-references
+        for type_name, type_info in self.analyzer.types.items():
+            if type_name in type_info.dependencies:
+                violations.append(
+                    ArchitecturalViolation(
+                        rule_id=rule.rule_id,
+                        severity=rule.severity,
+                        message=f"Cyclic dependency detected: {type_name} -> {type_name}",
+                        type_name=type_name,
+                        file_path=type_info.file_path,
+                        suggestion="Refactor to break the self-reference",
+                    )
+                )
 
         namespace_deps = defaultdict(set)
         for type_info in self.analyzer.types.values():
@@ -446,7 +460,7 @@ class CSharpAuditEngine:
                         ArchitecturalViolation(
                             rule_id=rule.rule_id,
                             severity=rule.severity,
-                            message=f"Repository '{type_name}' does not have a corresponding interface",
+                            message=f"Repository '{type_name}' does not have a corresponding interface '{interface_name}'",
                             type_name=type_name,
                             file_path=type_info.file_path,
                             suggestion=f"Create interface '{interface_name}' and inject via DI",

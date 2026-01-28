@@ -47,7 +47,10 @@ class CSharpArchitecturalAuditor:
         types_info = []
 
         for chunk in chunks:
+            # Try to extract namespace from chunk context first, then from full content
             namespace = self._extract_namespace(chunk.context or "")
+            if not namespace:
+                namespace = self._extract_namespace(content)
 
             type_info = CSharpTypeInfo(
                 name=chunk.name or "Unknown",
@@ -119,6 +122,7 @@ class CSharpArchitecturalAuditor:
                 "project_path": str(project_root),
                 "files_analyzed": 0,
                 "types_analyzed": 0,
+                "total_types": 0,
                 "types": {},
                 "audit_result": None,
             }
@@ -199,6 +203,7 @@ class CSharpArchitecturalAuditor:
             "files_analyzed": files_processed,
             "files_skipped": files_skipped,
             "types_analyzed": len(self.semantic_analyzer.types),
+            "total_types": len(self.semantic_analyzer.types),
             "types": self.semantic_analyzer.types,
             "audit_result": audit_result,
         }
@@ -227,8 +232,12 @@ class CSharpArchitecturalAuditor:
 
         self.reporter.print_console_summary(audit_result)
 
-    def convert_to_dna_patterns(self, types: list[CSharpTypeInfo]) -> list[Pattern]:
+    def convert_to_dna_patterns(self, types: list[CSharpTypeInfo] | dict, source_repo: str = "csharp_audit") -> list[Pattern]:
         """Convert analyzed types to DNA Pattern format for storage."""
+        # Convert dict to list if needed
+        if isinstance(types, dict):
+            types = list(types.values())
+
         if not types:
             logger.warning("No types provided to convert_to_dna_patterns")
             return []
@@ -267,7 +276,7 @@ class CSharpArchitecturalAuditor:
                 category=category,
                 language=Language.CSHARP,
                 quality_score=self._calculate_quality_score(type_info),
-                source_repo="csharp_audit",
+                source_repo=source_repo,
                 source_path=type_info.file_path,
                 use_cases=[
                     type_info.architectural_role.value,
@@ -285,7 +294,8 @@ class CSharpArchitecturalAuditor:
         """Extract namespace from context string."""
         for line in context.split("\n"):
             if line.strip().startswith("namespace "):
-                return line.strip().replace("namespace ", "").rstrip(";")
+                ns = line.strip().replace("namespace ", "").rstrip(";").rstrip("{").strip()
+                return ns
         return ""
 
     def _extract_base_types(self, content: str) -> list[str]:

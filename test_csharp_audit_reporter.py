@@ -207,7 +207,7 @@ class TestMarkdownReportGeneration:
         # Check for specific violations
         assert "DESIGN_001" in report
         assert "UserService" in report
-        assert "Low cohesion" in report.lower()
+        assert "low cohesion" in report.lower()
 
 
 class TestSARIFReportGeneration:

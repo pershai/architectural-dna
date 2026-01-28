@@ -303,7 +303,7 @@ class TestDNAPatternConversion:
         assert len(patterns) == 2
 
         controller_pattern = next(p for p in patterns if "Controller" in p.title)
-        assert controller_pattern.category == PatternCategory.API
+        assert controller_pattern.category == PatternCategory.API_DESIGN
 
         repo_pattern = next(p for p in patterns if "Repository" in p.title)
         assert repo_pattern.category == PatternCategory.DATA_ACCESS
