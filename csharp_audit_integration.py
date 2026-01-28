@@ -123,7 +123,9 @@ class CSharpArchitecturalAuditor:
                 raise FileNotFoundError(f"Project path does not exist: {project_path}")
 
             if not project_root.is_dir() and not project_root.is_file():
-                raise ValueError(f"Project path is neither file nor directory: {project_path}")
+                raise ValueError(
+                    f"Project path is neither file nor directory: {project_path}"
+                )
         except FileNotFoundError:
             raise  # Re-raise FileNotFoundError as-is
         except (PermissionError, OSError) as e:
@@ -183,7 +185,9 @@ class CSharpArchitecturalAuditor:
                             break
 
                     if content is None:
-                        logger.warning(f"Skipping {cs_file}: unsupported encoding or read error")
+                        logger.warning(
+                            f"Skipping {cs_file}: unsupported encoding or read error"
+                        )
                         files_skipped += 1
                         continue
 
@@ -445,12 +449,16 @@ class CSharpArchitecturalAuditor:
                 repo = client.get_repository(repo_name)
             except Exception as e:
                 logger.error(f"Failed to fetch repository {repo_name}: {e}")
-                raise ValueError(f"Repository {repo_name} not found or inaccessible") from e
+                raise ValueError(
+                    f"Repository {repo_name} not found or inaccessible"
+                ) from e
 
             if repo is None:
-                raise ValueError(f"Repository {repo_name} returned None from GitHub API")
+                raise ValueError(
+                    f"Repository {repo_name} returned None from GitHub API"
+                )
 
-            repo_path = getattr(repo, 'clone_url', None)
+            repo_path = getattr(repo, "clone_url", None)
             if not repo_path:
                 raise ValueError(
                     f"Could not get clone URL for repository {repo_name}. "
