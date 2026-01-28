@@ -232,7 +232,9 @@ class CSharpArchitecturalAuditor:
 
         self.reporter.print_console_summary(audit_result)
 
-    def convert_to_dna_patterns(self, types: list[CSharpTypeInfo] | dict, source_repo: str = "csharp_audit") -> list[Pattern]:
+    def convert_to_dna_patterns(
+        self, types: list[CSharpTypeInfo] | dict, source_repo: str = "csharp_audit"
+    ) -> list[Pattern]:
         """Convert analyzed types to DNA Pattern format for storage."""
         # Convert dict to list if needed
         if isinstance(types, dict):
@@ -294,7 +296,13 @@ class CSharpArchitecturalAuditor:
         """Extract namespace from context string."""
         for line in context.split("\n"):
             if line.strip().startswith("namespace "):
-                ns = line.strip().replace("namespace ", "").rstrip(";").rstrip("{").strip()
+                ns = (
+                    line.strip()
+                    .replace("namespace ", "")
+                    .rstrip(";")
+                    .rstrip("{")
+                    .strip()
+                )
                 return ns
         return ""
 

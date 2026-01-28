@@ -384,7 +384,8 @@ class CSharpPatternDetector:
 
         # Check for event raising (?.Invoke pattern or OnChanged/RaiseEvent calls)
         if re.search(
-            r"\w+\?\s*\.Invoke\(|OnChanged\s*\(|RaiseEvent\s*\(|PropertyChanged\?\s*\.Invoke\(", code
+            r"\w+\?\s*\.Invoke\(|OnChanged\s*\(|RaiseEvent\s*\(|PropertyChanged\?\s*\.Invoke\(",
+            code,
         ):
             indicators.append("Event raising")
 
@@ -597,7 +598,10 @@ class CSharpPatternDetector:
             indicators.append("SaveChanges/Commit method")
 
         # Check for transaction handling (BeginTransaction, CommitTransaction, etc)
-        if re.search(r"BeginTransaction|CommitTransaction|RollbackTransaction|RollbackAsync", code):
+        if re.search(
+            r"BeginTransaction|CommitTransaction|RollbackTransaction|RollbackAsync",
+            code,
+        ):
             indicators.append("Transaction handling")
 
         confidence = len(indicators) / float(CSHARP_CONSTANTS.UNIT_OF_WORK_INDICATORS)

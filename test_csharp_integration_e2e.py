@@ -340,9 +340,7 @@ class TestEndToEndAnalysis:
         assert json_path.stat().st_size > 0
 
         # Markdown
-        CSharpAuditReporter.generate_markdown_report(
-            audit_result, types, str(md_path)
-        )
+        CSharpAuditReporter.generate_markdown_report(audit_result, types, str(md_path))
         assert md_path.exists()
         assert md_path.stat().st_size > 0
 
