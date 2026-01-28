@@ -241,21 +241,19 @@ class CSharpPatternDetector:
         matches = []
         indicators = []
 
-        # Check for composition of same interface
+        # Check for composition of interface type (field holding interface)
+        if re.search(r"private\s+(?:readonly\s+)?I\w+\s+\w+\s*;", code):
+            indicators.append("Wraps interface type")
+
+        # Check for delegating methods (method calling wrapped object's method)
         if re.search(
-            r"private\s+(?:readonly\s+)?I\w+\s+\w+;.*public\s+class\s+" + type_name,
+            r"(?:public|protected)\s+(?:async\s+)?(?:Task\s*<\w+>|\w+)\s+\w+\s*\([^)]*\)\s*\{[^}]*\w+\.\w+\(",
             code,
             re.DOTALL,
         ):
-            indicators.append("Wraps interface type")
-
-        # Check for delegating methods
-        if re.search(
-            r"(?:public|protected)\s+\w+\s+\w+\s*\([^)]*\)\s*{[^}]*\w+\.\w+\(", code
-        ):
             indicators.append("Delegates to wrapped object")
 
-        # Check for decorator-like constructor
+        # Check for decorator-like constructor (takes interface parameter)
         if re.search(r"public\s+" + type_name + r"\s*\(\s*I\w+\s+", code):
             indicators.append("Takes interface in constructor")
 
@@ -380,13 +378,13 @@ class CSharpPatternDetector:
         matches = []
         indicators = []
 
-        # Check for events or delegates
-        if re.search(r"event\s+\w+\s+\w+;|EventHandler\s+\w+", code):
+        # Check for events or delegates (including generic EventHandler)
+        if re.search(r"event\s+[\w<>,\s]+\s+\w+\s*;|EventHandler\s*<", code):
             indicators.append("Event definition")
 
-        # Check for event raising
+        # Check for event raising (?.Invoke pattern or OnChanged/RaiseEvent calls)
         if re.search(
-            r"\w+\?.Invoke\(|OnChanged\(|RaiseEvent\(|PropertyChanged\?.Invoke\(", code
+            r"\w+\?\s*\.Invoke\(|OnChanged\s*\(|RaiseEvent\s*\(|PropertyChanged\?\s*\.Invoke\(", code
         ):
             indicators.append("Event raising")
 
@@ -587,19 +585,19 @@ class CSharpPatternDetector:
         matches = []
         indicators = []
 
-        # Check for multiple repositories
-        if re.search(r"I\w+Repository\s+\w+;.*I\w+Repository\s+\w+;", code, re.DOTALL):
+        # Check for multiple repositories (properties or fields)
+        if re.search(r"I\w+Repository\s+[\w\s{};]+I\w+Repository", code, re.DOTALL):
             indicators.append("Multiple repositories")
 
-        # Check for SaveChanges/Commit
+        # Check for SaveChanges/Commit (including async variants)
         if re.search(
-            r"public\s+(?:async\s+)?(?:Task<)?[\w\[\]]*\s+(?:SaveChanges|Commit|Complete)\s*\(",
+            r"(?:SaveChanges|Commit|Complete)\s*(?:Async)?\s*\(",
             code,
         ):
             indicators.append("SaveChanges/Commit method")
 
-        # Check for transaction handling
-        if re.search(r"using\s*\(.*Transaction|BeginTransaction|RollbackAsync", code):
+        # Check for transaction handling (BeginTransaction, CommitTransaction, etc)
+        if re.search(r"BeginTransaction|CommitTransaction|RollbackTransaction|RollbackAsync", code):
             indicators.append("Transaction handling")
 
         confidence = len(indicators) / float(CSHARP_CONSTANTS.UNIT_OF_WORK_INDICATORS)

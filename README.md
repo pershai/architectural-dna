@@ -712,26 +712,82 @@ Log levels:
 
 ```
 architectural-dna/
-├── dna_server.py                    # MCP server with tool definitions
-├── models.py                        # Data models (Pattern, CodeChunk, etc.)
-├── github_client.py                 # GitHub API integration
-├── github_cache.py                  # LRU cache with TTL for GitHub API
-├── pattern_extractor.py             # AST-based code parsing
-├── llm_analyzer.py                  # Gemini pattern analysis
-├── scaffolder.py                    # Project generation
-├── constants.py                     # Centralized configuration constants
-├── discover_dna.py                  # Local directory indexing
-├── csharp_semantic_analyzer.py      # Semantic analysis, DI mapping, metrics
-├── csharp_audit_engine.py           # 9 architectural audit rules
-├── csharp_audit_reporter.py         # JSON/Markdown/SARIF report generation
-├── csharp_audit_integration.py      # DNA system integration
-├── csharp_pattern_detector.py       # 18 design pattern detectors
-├── csharp_constants.py              # C# analysis constants and thresholds
-├── tests/                           # Comprehensive test suite│
-├── config.yaml                      # Configuration
-├── SKILL.md               # Claude Code skill with workflow guidance
-├── requirements.txt                 # Python dependencies
-└── .env                             # Environment variables (gitignored)
+│
+├─ 🔌 Core MCP Server
+│  ├── dna_server.py                 # MCP server with tool definitions
+│  ├── models.py                     # Data models (Pattern, CodeChunk, etc.)
+│  └── constants.py                  # Centralized configuration constants
+│
+├─ 🧬 Pattern Extraction & Analysis
+│  ├── pattern_extractor.py          # AST-based code parsing (tree-sitter)
+│  ├── llm_analyzer.py               # Gemini LLM pattern analysis
+│  ├── embedding_manager.py          # Vector embedding and storage
+│  ├── hybrid_search.py              # Semantic + keyword search
+│  └── scaffolder.py                 # Project generation from patterns
+│
+├─ 🔐 GitHub Integration
+│  ├── github_client.py              # GitHub API client
+│  ├── github_cache.py               # LRU cache with TTL for GitHub API
+│  ├── discover_dna.py               # Local directory indexing
+│  ├── manual_list_repos.py          # Repo listing utility
+│  └── migrate_collection.py         # Qdrant collection migration
+│
+├─ 🔷 C# Advanced Analysis (Enterprise Features)
+│  ├── csharp_semantic_analyzer.py   # Semantic analysis, DI mapping, LCOM metrics
+│  ├── csharp_audit_engine.py        # 9 architectural audit rules
+│  ├── csharp_audit_reporter.py      # JSON/Markdown/SARIF report generation
+│  ├── csharp_audit_integration.py   # DNA system integration
+│  ├── csharp_pattern_detector.py    # 18 design pattern detectors
+│  ├── csharp_code_parser.py         # C# code parsing utilities
+│  └── csharp_constants.py           # C# analysis constants and thresholds
+│
+├─ 🛠️ MCP Tools & Services
+│  └── tools/
+│      ├── base.py                   # Base tool interface
+│      ├── batch_processor.py        # Batch processing for repos
+│      ├── pattern_tool.py           # Pattern storage and search
+│      ├── repository_tool.py        # Repository operations
+│      ├── scaffold_tool.py          # Project scaffolding
+│      ├── maintenance_tool.py       # System maintenance
+│      └── stats_tool.py             # Database statistics
+│
+├─ 🧪 Test Suite (399 tests, 100% passing)
+│  ├── conftest.py                   # Pytest fixtures and configuration
+│  ├── test_csharp_*.py              # C# analysis tests (120+ tests)
+│  ├── test_pattern_*.py             # Pattern extraction tests
+│  ├── test_embedding_*.py           # Embedding & search tests
+│  ├── test_github_*.py              # GitHub integration tests
+│  ├── test_tools.py                 # MCP tool tests
+│  ├── test_models.py                # Data model tests
+│  └── test_batch*.py                # Batch processing tests
+│
+├─ 📦 Configuration & Deployment
+│  ├── config.yaml                   # Main configuration (embeddings, search, Qdrant)
+│  ├── requirements.txt              # Python dependencies
+│  ├── Dockerfile                    # Docker container definition
+│  ├── docker-compose.yml            # Multi-service Docker setup
+│  ├── Makefile                      # Build and deployment commands
+│  ├── pytest.ini                    # Pytest configuration
+│  └── ruff.toml                     # Code linting configuration
+│
+├─ 📚 Documentation & Guides
+│  ├── README.md                     # Main documentation (you are here)
+│  ├── CLAUDE.md                     # Claude Code agent context
+│  ├── SKILL.md                      # Claude Code skill workflow
+│  ├── MCP_SETUP.md                  # MCP client configuration guide
+│  ├── SECURITY.md                   # Security and credential management
+│  └── PR_REVIEW_C_SHARP_BRANCH.md   # C# branch review notes
+│
+├─ 🗂️ Utilities & Data
+│  ├── scripts/                      # Utility scripts
+│  ├── data/                         # Sample data and test fixtures
+│  └── .github/workflows/            # CI/CD GitHub Actions
+│
+└─ 🔑 Environment & Git
+   ├── .env.example                  # Environment variables template
+   ├── .env                          # Environment variables (gitignored)
+   ├── .gitignore                    # Git ignore rules
+   └── .git/                         # Git repository
 ```
 
 ### Adding New Languages
