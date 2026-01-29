@@ -61,40 +61,6 @@ class PatternExtractor:
             self._ts_parser = None
             self._ts_csharp_lang = None
 
-    def __init__(self):
-        """Initialize PatternExtractor with optional tree-sitter support."""
-        self._ts_parser = None
-        self._ts_csharp_lang = None
-        self._init_treesitter()
-
-    def _init_treesitter(self) -> None:
-        """Initialize tree-sitter parser and C# language support.
-
-        Gracefully handles missing tree-sitter or language bindings.
-        """
-        if not _tree_sitter_available:
-            return
-
-        try:
-            # Build C# language library
-            from tree_sitter_c_sharp import language
-
-            self._ts_csharp_lang = language()
-            self._ts_parser = Parser()
-            self._ts_parser.set_language(self._ts_csharp_lang)
-            logger.info("Tree-sitter C# parser initialized successfully")
-        except ImportError as e:
-            logger.warning(
-                f"Tree-sitter C# language not available: {e}. "
-                "Falling back to regex extraction."
-            )
-            self._ts_parser = None
-            self._ts_csharp_lang = None
-        except Exception as e:
-            logger.error(f"Failed to initialize tree-sitter: {e}")
-            self._ts_parser = None
-            self._ts_csharp_lang = None
-
     def extract_chunks(
         self, content: str, file_path: str, language: Language
     ) -> list[CodeChunk]:
