@@ -567,7 +567,7 @@ class CSharpPatternDetector:
         if "Repository" in type_name or "DAO" in type_name:
             indicators.append("Repository/DAO in name")
 
-        confidence = len(indicators) / float(CSHARP_CONSTANTS.SINGLETON_INDICATORS)
+        confidence = len(indicators) / float(CSHARP_CONSTANTS.REPOSITORY_INDICATORS)
 
         if confidence >= CSHARP_CONSTANTS.PATTERN_CONFIDENCE_HIGH:
             matches.append(

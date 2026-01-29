@@ -469,18 +469,15 @@ def analyze_csharp_project(
 
         if audit_result is None:
             logger.warning(f"No audit result for {project_path}, creating empty result")
-            audit_result = type(
-                "obj",
-                (object,),
-                {
-                    "total_types": 0,
-                    "total_violations": 0,
-                    "violations_by_severity": {},
-                    "violations_by_rule": {},
-                    "violations": [],
-                    "metrics": {},
-                },
-            )()
+            from csharp_audit_engine import AuditResult
+
+            audit_result = AuditResult(
+                total_types=0,
+                total_violations=0,
+                violations_by_severity={},
+                violations_by_rule={},
+                violations=[],
+            )
 
         if not isinstance(types, dict):
             logger.error(f"Invalid types in result: {type(types)}, expected dict")

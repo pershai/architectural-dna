@@ -293,24 +293,29 @@ class CSharpSemanticAnalyzer:
                 ):
                     return role
 
-        # Check naming conventions
-        if type_name.endswith("Controller"):
-            return ArchitecturalRole.CONTROLLER
-        elif type_name.endswith("Service"):
-            return ArchitecturalRole.SERVICE
-        elif type_name.endswith("Repository"):
-            return ArchitecturalRole.REPOSITORY
-        elif type_name.endswith("Handler"):
-            return ArchitecturalRole.HANDLER
-        elif type_name.endswith("Validator"):
-            return ArchitecturalRole.VALIDATOR
+        # Check naming conventions using mapping
+        naming_patterns = {
+            ArchitecturalRole.CONTROLLER: "Controller",
+            ArchitecturalRole.SERVICE: "Service",
+            ArchitecturalRole.REPOSITORY: "Repository",
+            ArchitecturalRole.HANDLER: "Handler",
+            ArchitecturalRole.VALIDATOR: "Validator",
+        }
+
+        for role, suffix in naming_patterns.items():
+            if type_name.endswith(suffix):
+                return role
 
         # Check base types/interfaces
+        base_type_patterns = {
+            ArchitecturalRole.CONTROLLER: "Controller",
+            ArchitecturalRole.REPOSITORY: "Repository",
+        }
+
         for base_type in base_types:
-            if "Controller" in base_type:
-                return ArchitecturalRole.CONTROLLER
-            elif "Repository" in base_type:
-                return ArchitecturalRole.REPOSITORY
+            for role, pattern in base_type_patterns.items():
+                if pattern in base_type:
+                    return role
 
         return ArchitecturalRole.UNKNOWN
 
@@ -756,12 +761,20 @@ class CSharpSemanticAnalyzer:
                         continue
 
                 type_info.design_patterns = validated_patterns
+
+            except RecursionError as e:
+                logger.error(f"CRITICAL: Pattern detection recursion limit in {type_info.name}: {e}")
+                raise RuntimeError(f"Pattern detection failed: recursion limit exceeded") from e
+            except MemoryError as e:
+                logger.error(f"CRITICAL: Pattern detection out of memory for {type_info.name}")
+                raise RuntimeError(f"Pattern detection failed: insufficient memory") from e
             except Exception as e:
-                # Gracefully skip pattern detection on error, but log it
-                logger.warning(
-                    f"Pattern detection failed for type {type_info.name}: {e}",
+                logger.error(
+                    f"Unexpected error in pattern detection for {type_info.name}: {e}. "
+                    f"Design patterns will not be included in analysis.",
                     exc_info=True,
                 )
+                type_info.design_patterns = []
 
         # Store in analyzer
         self.types[type_info.name] = type_info

@@ -363,15 +363,18 @@ class PatternExtractor:
 
                 if self._is_valid_chunk(chunk_content):
                     # Determine chunk type based on keyword
+                    chunk_type_map = {
+                        "interface": "interface",
+                        "struct": "struct",
+                        "record": "record",
+                        "enum": "enum",
+                    }
+
                     chunk_type = "class"
-                    if "interface" in stripped:
-                        chunk_type = "interface"
-                    elif "struct" in stripped:
-                        chunk_type = "struct"
-                    elif "record" in stripped:
-                        chunk_type = "record"
-                    elif "enum" in stripped:
-                        chunk_type = "enum"
+                    for keyword, ctype in chunk_type_map.items():
+                        if keyword in stripped:
+                            chunk_type = ctype
+                            break
 
                     chunks.append(
                         CodeChunk(
