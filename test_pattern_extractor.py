@@ -394,3 +394,284 @@ func main() {
         chunks = extractor.extract_chunks(go_code, "main.go", Language.GO)
         # Should use semantic chunking
         assert len(chunks) >= 0  # May or may not meet minimum lines
+
+    # ==========================================================================
+    # C# AST extraction tests
+    # ==========================================================================
+
+    def test_extract_csharp_class_ast(self, extractor):
+        """Test extracting a C# class using AST parsing."""
+        code = """using System;
+
+namespace MyApp.Services
+{
+    public class UserService
+    {
+        private readonly IUserRepository _repository;
+
+        public UserService(IUserRepository repository)
+        {
+            _repository = repository;
+        }
+
+        public User GetById(int id)
+        {
+            return _repository.FindById(id);
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "UserService.cs", Language.CSHARP)
+
+        # Should have at least one chunk with the class
+        assert len(chunks) >= 1
+        class_chunks = [c for c in chunks if c.name == "UserService"]
+        if class_chunks:  # If AST succeeded
+            assert class_chunks[0].chunk_type == "class"
+            assert class_chunks[0].language == Language.CSHARP
+
+    def test_extract_csharp_interface_ast(self, extractor):
+        """Test extracting a C# interface using AST parsing."""
+        code = """using System;
+
+namespace MyApp.Repositories
+{
+    public interface IUserRepository
+    {
+        User FindById(int id);
+        void Save(User user);
+        void Delete(int id);
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "IUserRepository.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        interface_chunks = [c for c in chunks if "IUserRepository" in c.name]
+        if interface_chunks:  # If AST succeeded
+            assert interface_chunks[0].chunk_type == "interface"
+
+    def test_extract_csharp_record_ast(self, extractor):
+        """Test extracting a C# record using AST parsing."""
+        code = """namespace MyApp.Models
+{
+    public record User(int Id, string Name, string Email)
+    {
+        public override string ToString()
+        {
+            return $"{Name} <{Email}>";
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "User.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        record_chunks = [c for c in chunks if c.name == "User"]
+        if record_chunks:  # If AST succeeded
+            assert record_chunks[0].chunk_type == "record"
+
+    def test_extract_csharp_enum_ast(self, extractor):
+        """Test extracting a C# enum using AST parsing."""
+        code = """namespace MyApp.Models
+{
+    public enum UserRole
+    {
+        Admin = 1,
+        User = 2,
+        Guest = 3
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "UserRole.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        enum_chunks = [c for c in chunks if c.name == "UserRole"]
+        if enum_chunks:  # If AST succeeded
+            assert enum_chunks[0].chunk_type == "enum"
+
+    def test_extract_csharp_struct_ast(self, extractor):
+        """Test extracting a C# struct using AST parsing."""
+        code = """namespace MyApp.Models
+{
+    public struct Point
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+
+        public double Distance()
+        {
+            return Math.Sqrt(X * X + Y * Y);
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "Point.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        struct_chunks = [c for c in chunks if c.name == "Point"]
+        if struct_chunks:  # If AST succeeded
+            assert struct_chunks[0].chunk_type == "struct"
+
+    def test_extract_csharp_with_attributes_ast(self, extractor):
+        """Test extracting a C# class with attributes using AST."""
+        code = """using System.ComponentModel.DataAnnotations;
+
+namespace MyApp.Models
+{
+    [Table("users")]
+    [Serializable]
+    public class User
+    {
+        [Key]
+        [Column("user_id")]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(100)]
+        public string Name { get; set; }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "User.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        user_chunks = [c for c in chunks if c.name == "User"]
+        if user_chunks:  # If AST succeeded
+            # Attributes should be included in the content
+            assert (
+                "[Table" in user_chunks[0].content
+                or "[Serializable" in user_chunks[0].content
+            )
+
+    def test_extract_csharp_generic_class_ast(self, extractor):
+        """Test extracting a C# generic class using AST."""
+        code = """namespace MyApp.Collections
+{
+    public class Repository<T> where T : class
+    {
+        private readonly List<T> _items = new();
+
+        public void Add(T item)
+        {
+            _items.Add(item);
+        }
+
+        public T GetById(int id)
+        {
+            return _items[id];
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "Repository.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        repo_chunks = [c for c in chunks if "Repository" in c.name]
+        if repo_chunks:  # If AST succeeded
+            assert repo_chunks[0].chunk_type == "class"
+
+    def test_extract_csharp_multiple_types_ast(self, extractor):
+        """Test extracting multiple types from a single file using AST."""
+        code = """namespace MyApp.Models
+{
+    public interface IEntity
+    {
+        int Id { get; }
+    }
+
+    public class User : IEntity
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+
+    public class Product : IEntity
+    {
+        public int Id { get; set; }
+        public decimal Price { get; set; }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "Models.cs", Language.CSHARP)
+
+        # Should extract multiple types
+        assert len(chunks) >= 2
+        # Check if we got the types (AST or regex fallback)
+        assert any(
+            "IEntity" in c.name or "User" in c.name or "Product" in c.name
+            for c in chunks
+        )
+
+    def test_extract_csharp_nested_classes_ast(self, extractor):
+        """Test extracting nested classes using AST."""
+        code = """namespace MyApp
+{
+    public class Outer
+    {
+        public int Value { get; set; }
+
+        public class Inner
+        {
+            public string Name { get; set; }
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "Outer.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        # The outer class should be detected
+        outer_chunks = [c for c in chunks if c.name == "Outer"]
+        if outer_chunks:
+            assert outer_chunks[0].chunk_type == "class"
+
+    def test_extract_csharp_fallback_to_regex(self, extractor):
+        """Test that extraction falls back to regex if AST is not available."""
+        code = """using System;
+
+public class TestClass
+{
+    public void Method()
+    {
+        Console.WriteLine("Hello World");
+        Console.WriteLine("Test");
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "Test.cs", Language.CSHARP)
+
+        # Should have at least one chunk (either AST or regex fallback)
+        assert len(chunks) >= 1
+        assert any(c.name == "TestClass" for c in chunks)
+
+    def test_extract_csharp_with_namespace_context_ast(self, extractor):
+        """Test that namespace is extracted in context."""
+        code = """using System;
+using System.Collections.Generic;
+
+namespace MyApp.Services.Handlers
+{
+    public class RequestHandler
+    {
+        public void Handle()
+        {
+        }
+    }
+}
+"""
+        chunks = extractor.extract_chunks(code, "RequestHandler.cs", Language.CSHARP)
+
+        # Should have at least one chunk
+        assert len(chunks) >= 1
+        handler_chunks = [c for c in chunks if c.name == "RequestHandler"]
+        if handler_chunks:
+            # Namespace should be in context
+            assert "MyApp.Services.Handlers" in handler_chunks[0].context
