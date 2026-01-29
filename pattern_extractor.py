@@ -8,6 +8,14 @@ from models import CodeChunk, Language
 
 logger = logging.getLogger(__name__)
 
+# Tree-sitter imports - lazy loaded for optional functionality
+_tree_sitter_available = False
+try:
+    from tree_sitter import Language as TSLanguage, Parser
+    _tree_sitter_available = True
+except ImportError:
+    logger.debug("tree-sitter not available, using regex-based extraction")
+
 
 class PatternExtractor:
     """Extracts code patterns from source files using various strategies."""
@@ -17,6 +25,40 @@ class PatternExtractor:
 
     # Maximum lines for a single chunk (to avoid overwhelming the LLM)
     MAX_CHUNK_LINES = 150
+
+    def __init__(self):
+        """Initialize PatternExtractor with optional tree-sitter support."""
+        self._ts_parser = None
+        self._ts_csharp_lang = None
+        self._init_treesitter()
+
+    def _init_treesitter(self) -> None:
+        """Initialize tree-sitter parser and C# language support.
+
+        Gracefully handles missing tree-sitter or language bindings.
+        """
+        if not _tree_sitter_available:
+            return
+
+        try:
+            # Build C# language library
+            from tree_sitter_c_sharp import language
+
+            self._ts_csharp_lang = language()
+            self._ts_parser = Parser()
+            self._ts_parser.set_language(self._ts_csharp_lang)
+            logger.info("Tree-sitter C# parser initialized successfully")
+        except ImportError as e:
+            logger.warning(
+                f"Tree-sitter C# language not available: {e}. "
+                "Falling back to regex extraction."
+            )
+            self._ts_parser = None
+            self._ts_csharp_lang = None
+        except Exception as e:
+            logger.error(f"Failed to initialize tree-sitter: {e}")
+            self._ts_parser = None
+            self._ts_csharp_lang = None
 
     def extract_chunks(
         self, content: str, file_path: str, language: Language
@@ -43,7 +85,10 @@ class PatternExtractor:
         elif language in (Language.JAVASCRIPT, Language.TYPESCRIPT):
             chunks = self._extract_js_chunks(content, file_path, language)
         elif language == Language.CSHARP:
-            chunks = self._extract_csharp_chunks(content, file_path)
+            # Try AST-based extraction first, fall back to regex
+            chunks = self._extract_csharp_ast_chunks(content, file_path)
+            if not chunks:
+                chunks = self._extract_csharp_chunks(content, file_path)
         else:
             chunks = []
 
@@ -324,6 +369,142 @@ class PatternExtractor:
             if stripped.startswith("import ") or stripped.startswith("require("):
                 import_lines.append(line)
         return "\n".join(import_lines)
+
+    def _extract_csharp_ast_chunks(self, content: str, file_path: str) -> list[CodeChunk]:
+        """Extract C# chunks using tree-sitter AST parsing.
+
+        Falls back to empty list if tree-sitter is not available.
+        The regex-based extraction will be used as fallback.
+
+        Args:
+            content: C# source code
+            file_path: Path to the file
+
+        Returns:
+            List of CodeChunk objects extracted via AST
+        """
+        if not self._ts_parser or not self._ts_csharp_lang:
+            return []
+
+        try:
+            chunks = []
+            lines = content.split("\n")
+            context = self._extract_csharp_context(content)
+
+            # Parse the code
+            tree = self._ts_parser.parse(content.encode("utf-8"))
+            root = tree.root_node
+
+            # Query for type declarations (class, interface, struct, record, enum)
+            chunk_nodes = self._query_csharp_types(root, content)
+
+            for node_info in chunk_nodes:
+                node, chunk_type = node_info
+                start_line = node.start_point[0]
+                end_line = node.end_point[0]
+
+                # Get type name
+                type_name = self._extract_type_name(node, content)
+                if not type_name:
+                    continue
+
+                # Extract chunk content, including attributes
+                attribute_start = self._find_leading_attributes(lines, start_line)
+                chunk_content = "\n".join(lines[attribute_start : end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.CSHARP,
+                            start_line=attribute_start + 1,
+                            end_line=end_line + 1,
+                            chunk_type=chunk_type,
+                            name=type_name,
+                            context=context,
+                        )
+                    )
+
+            return chunks
+
+        except Exception as e:
+            logger.warning(
+                f"Tree-sitter AST extraction failed for {file_path}: {e}. "
+                "Falling back to regex extraction."
+            )
+            return []
+
+    def _query_csharp_types(self, root_node, content: str) -> list[tuple]:
+        """Query tree-sitter AST for C# type declarations.
+
+        Args:
+            root_node: Root node of the parsed AST
+            content: Source code (for reference)
+
+        Returns:
+            List of (node, chunk_type) tuples for type declarations
+        """
+        type_map = {
+            "class_declaration": "class",
+            "interface_declaration": "interface",
+            "struct_declaration": "struct",
+            "record_declaration": "record",
+            "enum_declaration": "enum",
+        }
+
+        chunks = []
+
+        def traverse(node):
+            """Recursively traverse AST nodes."""
+            if node.type in type_map:
+                chunks.append((node, type_map[node.type]))
+
+            for child in node.children:
+                traverse(child)
+
+        traverse(root_node)
+        return chunks
+
+    def _extract_type_name(self, node, content: str) -> str | None:
+        """Extract the name of a C# type from its AST node.
+
+        Args:
+            node: AST node representing a type
+            content: Source code
+
+        Returns:
+            Type name or None if not found
+        """
+        # The type name is usually the first identifier child after modifiers
+        for child in node.children:
+            if child.type == "identifier":
+                return content[child.start_byte : child.end_byte].decode("utf-8")
+
+        return None
+
+    def _find_leading_attributes(self, lines: list[str], type_start: int) -> int:
+        """Find the start of attributes preceding a type declaration.
+
+        Args:
+            lines: Source code lines
+            type_start: Starting line of type declaration
+
+        Returns:
+            Starting line including attributes
+        """
+        start = type_start
+        i = type_start - 1
+
+        while i >= 0:
+            stripped = lines[i].strip()
+            if stripped.startswith("[") or stripped.startswith("//") or not stripped:
+                start = i
+                i -= 1
+            else:
+                break
+
+        return start
 
     def _extract_csharp_chunks(self, content: str, file_path: str) -> list[CodeChunk]:
         """Extract C# classes, interfaces, structs, and methods using regex-based parsing."""
