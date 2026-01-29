@@ -70,17 +70,54 @@ class CSharpAuditEngine:
         self._initialize_rules()
 
     def _load_config(self, config_path: str) -> dict:
-        """Load C# audit configuration from YAML file."""
-        try:
-            config_file = Path(config_path)
-            if config_file.exists():
-                with open(config_file) as f:
-                    config = yaml.safe_load(f)
-                    return config.get("csharp_audit", {})
-        except Exception as e:
-            logger.warning(f"Failed to load config from {config_path}: {e}")
+        """Load and validate C# configuration from YAML file.
 
-        # Return defaults if config not found
+        Configuration not found = use defaults (acceptable)
+        Configuration present but invalid = error (must be fixed)
+        """
+        config_file = Path(config_path)
+
+        # Config file doesn't exist - use defaults
+        if not config_file.exists():
+            logger.debug(f"Config file not found at {config_path}, using defaults")
+            return self._get_default_config()
+
+        # Config file exists - it must be valid
+        try:
+            with open(config_file) as f:
+                raw_config = yaml.safe_load(f)
+                if raw_config is None:
+                    raw_config = {}
+
+                csharp_config = raw_config.get("csharp_audit", {})
+                logger.info(f"Loaded config from {config_path}")
+                return csharp_config if csharp_config else self._get_default_config()
+
+        except PermissionError as e:
+            error_msg = f"Permission denied reading config at {config_path}. Check file permissions."
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
+
+        except yaml.YAMLError as e:
+            error_msg = f"Invalid YAML in {config_path}: {e}. Please check syntax."
+            logger.error(error_msg)
+            raise ValueError(error_msg) from e
+
+        except Exception as e:
+            error_msg = f"Unexpected error loading config from {config_path}: {e}"
+            logger.error(error_msg, exc_info=True)
+            raise ValueError(error_msg) from e
+
+    @staticmethod
+    def _get_default_config() -> dict:
+        """Return default C# audit configuration.
+
+        Thresholds based on architectural best practices:
+        - LCOM 0.8: Classes with <0.8 cohesion are God Objects
+        - LOC 500: Classes >500 lines should be split
+        - Complexity 15: Methods with CC>15 are too complex
+        - Max 7 dependencies: Classes should depend on ≤7 other types
+        """
         return {
             "metrics": {
                 "lcom_threshold": 0.8,
@@ -511,16 +548,52 @@ class CSharpAuditEngine:
         ]
 
         for audit_method in audit_methods:
+            method_name = audit_method.__name__
             try:
                 result = audit_method()
+
                 if not isinstance(result, list):
-                    logger.error(
-                        f"{audit_method.__name__} returned {type(result).__name__} instead of list"
+                    error_msg = (
+                        f"Audit method {method_name} returned {type(result).__name__} "
+                        f"instead of list. This is a programming error."
                     )
-                    continue
+                    logger.error(error_msg)
+                    raise TypeError(error_msg)
+
+                if not all(isinstance(v, ArchitecturalViolation) for v in result):
+                    error_msg = (
+                        f"Audit method {method_name} returned non-violation items"
+                    )
+                    logger.error(error_msg)
+                    raise TypeError(error_msg)
+
                 all_violations.extend(result)
-            except Exception as e:
-                logger.error(f"Error in {audit_method.__name__}: {e}", exc_info=True)
+
+            except ArchitecturalViolation:
+                raise  # Don't catch our own exception types
+            except (RecursionError, MemoryError) as resource_error:
+                logger.error(
+                    f"CRITICAL: Resource exhaustion in {method_name}: {resource_error}",
+                    exc_info=True,
+                )
+                raise RuntimeError(
+                    f"Analysis failed: insufficient resources during {method_name}"
+                ) from resource_error
+            except (KeyError, AttributeError, TypeError, ValueError) as logic_error:
+                logger.error(
+                    f"CRITICAL: Logic error in {method_name}: {logic_error}. "
+                    f"This indicates a bug in the audit implementation.",
+                    exc_info=True,
+                )
+                raise
+            except Exception as unexpected_error:
+                logger.error(
+                    f"Unexpected error in {method_name}: {unexpected_error}",
+                    exc_info=True,
+                )
+                raise RuntimeError(
+                    f"Audit failed: {method_name} raised unexpected error"
+                ) from unexpected_error
 
         violations_by_severity: defaultdict[str, int] = defaultdict(int)
         violations_by_rule: defaultdict[str, int] = defaultdict(int)
@@ -529,28 +602,34 @@ class CSharpAuditEngine:
             violations_by_severity[violation.severity] += 1
             violations_by_rule[violation.rule_id] += 1
 
-        types_by_count = len(self.analyzer.types) if self.analyzer.types else 0
+        types_by_count = len(self.analyzer.types)
         types_by_role_dict: defaultdict[str, int] = defaultdict(int)
+
+        # Count types by role
+        for type_info in self.analyzer.types.values():
+            types_by_role_dict[type_info.architectural_role.value] += 1
+
+        # Calculate average metrics
+        avg_lcom = 0.0
+        avg_dependencies = 0.0
+        if types_by_count > 0:
+            avg_lcom = (
+                sum(t.lcom_score for t in self.analyzer.types.values()) / types_by_count
+            )
+            avg_dependencies = (
+                sum(len(t.dependencies) for t in self.analyzer.types.values())
+                / types_by_count
+            )
+
         metrics: dict[str, int | float | defaultdict[str, int]] = {
             "total_types": types_by_count,
-            "avg_lcom": sum(t.lcom_score for t in self.analyzer.types.values())
-            / types_by_count
-            if types_by_count
-            else 0,
-            "avg_dependencies": sum(
-                len(t.dependencies) for t in self.analyzer.types.values()
-            )
-            / types_by_count
-            if types_by_count
-            else 0,
+            "avg_lcom": avg_lcom,
+            "avg_dependencies": avg_dependencies,
             "types_by_role": types_by_role_dict,
             "namespaces_analyzed": len(
                 {t.namespace for t in self.analyzer.types.values()}
             ),
         }
-
-        for type_info in self.analyzer.types.values():
-            types_by_role_dict[type_info.architectural_role.value] += 1
 
         return AuditResult(
             total_types=len(self.analyzer.types),

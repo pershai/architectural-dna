@@ -174,9 +174,12 @@ class CSharpArchitecturalAuditor:
                 try:
                     # Try multiple encodings
                     content = None
+                    encoding_used = None
+
                     for encoding in ["utf-8", "utf-8-sig", "windows-1252"]:
                         try:
                             content = cs_file.read_text(encoding=encoding)
+                            encoding_used = encoding
                             break
                         except UnicodeDecodeError:
                             continue
@@ -186,16 +189,35 @@ class CSharpArchitecturalAuditor:
 
                     if content is None:
                         logger.warning(
-                            f"Skipping {cs_file}: unsupported encoding or read error"
+                            f"Skipping {cs_file}: failed to decode with any encoding"
                         )
                         files_skipped += 1
                         continue
 
+                    # Validate it looks like C# code
+                    if not self._looks_like_csharp(content):
+                        logger.warning(
+                            f"Skipping {cs_file}: content doesn't appear to be C# code"
+                        )
+                        files_skipped += 1
+                        continue
+
+                    logger.debug(f"Read {cs_file.name} using {encoding_used} encoding")
+
                     # Extract DI registrations from entry point files
                     if cs_file.name in ["Program.cs", "Startup.cs"]:
-                        self.semantic_analyzer.extract_di_registrations(
-                            content, str(cs_file)
-                        )
+                        try:
+                            self.semantic_analyzer.extract_di_registrations(
+                                content, str(cs_file)
+                            )
+                            logger.info(f"Extracted DI registrations from {cs_file}")
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to extract DI registrations from {cs_file}: {e}. "
+                                f"Architectural role detection may be less accurate.",
+                                exc_info=True,
+                            )
+                            # Continue - DI mapping is optional, not critical
 
                     # Analyze file and register types directly to prevent memory accumulation
                     types = self.analyze_csharp_file(str(cs_file), content)
@@ -317,6 +339,15 @@ class CSharpArchitecturalAuditor:
             patterns.append(pattern)
 
         return patterns
+
+    def _looks_like_csharp(self, content: str) -> bool:
+        """Quick sanity check that content looks like C# code."""
+        upper_content = content.upper()
+        return (
+            any(keyword in upper_content for keyword in ["CLASS", "NAMESPACE", "USING"])
+            or upper_content.count("PUBLIC") > 0
+            or upper_content.count("PRIVATE") > 0
+        )
 
     def _extract_namespace(self, context: str) -> str:
         """Extract namespace from context string.
@@ -468,10 +499,28 @@ class CSharpArchitecturalAuditor:
             logger.info(f"Analyzing C# project at: {repo_path}")
 
             # Analyze C# project
-            analysis_result = self.analyze_csharp_project(repo_path)
+            try:
+                analysis_result = self.analyze_csharp_project(repo_path)
+            except Exception as e:
+                logger.error(
+                    f"Failed to analyze project at {repo_path}: {e}", exc_info=True
+                )
+                raise ValueError(f"C# project analysis failed: {e}") from e
+
+            if not isinstance(analysis_result, dict):
+                raise TypeError(
+                    f"analyze_csharp_project returned {type(analysis_result)}, expected dict"
+                )
+
+            if "types" not in analysis_result:
+                raise ValueError("analyze_csharp_project result missing 'types' key")
 
             # Convert types to patterns (types is a dict, convert to list)
             types_dict = analysis_result.get("types", {})
+            if not isinstance(types_dict, dict):
+                raise TypeError(
+                    f"'types' in result is {type(types_dict)}, expected dict"
+                )
             types_list = list(types_dict.values()) if types_dict else []
             patterns = self.convert_to_dna_patterns(types_list)
 
@@ -502,18 +551,26 @@ class CSharpArchitecturalAuditor:
             raise
 
         finally:
-            # Cleanup temporary directory
-            repo_path_str = str(Path(temp_dir) / repo_name.split("/")[-1])
-            repo_path = Path(repo_path_str)
+            # Cleanup temporary directory with robust error handling
+            repo_path = Path(temp_dir) / repo_name.split("/")[-1]
             if repo_path.exists():
                 try:
-                    shutil.rmtree(repo_path_str)
-                    logger.debug(f"Cleaned up temporary directory: {repo_path_str}")
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to clean up temporary directory {repo_path_str}: {e}. "
-                        f"Manual cleanup may be required."
-                    )
+                    shutil.rmtree(str(repo_path))
+                    logger.debug(f"Successfully cleaned up: {repo_path}")
+                except PermissionError:
+                    logger.warning(f"Temp directory locked, retrying: {repo_path}")
+                    try:
+                        import time
+
+                        time.sleep(0.5)
+                        shutil.rmtree(str(repo_path))
+                        logger.debug(f"Cleanup succeeded on retry: {repo_path}")
+                    except Exception as retry_error:
+                        logger.error(f"Failed to clean up {repo_path}: {retry_error}")
+                        logger.warning(f"Manual cleanup required: rm -rf {repo_path}")
+                except OSError as e:
+                    logger.error(f"Cannot clean up {repo_path}: {e}")
+                    logger.warning(f"Manual cleanup required: rm -rf {repo_path}")
 
 
 def audit_csharp_project_example(project_path: str, output_dir: str):
