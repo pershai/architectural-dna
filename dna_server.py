@@ -58,10 +58,67 @@ def get_env_or_header(
     return os.getenv(key, default)
 
 
+def load_configuration(config_path: Path) -> dict:
+    """Load and validate configuration file.
+
+    Args:
+        config_path: Path to config.yaml
+
+    Returns:
+        Validated configuration dictionary
+
+    Raises:
+        SystemExit: If configuration is missing, invalid, or incomplete
+    """
+    try:
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_path}\n"
+                f"Please create config.yaml in {config_path.parent}\n"
+                f"See .env.example and config.yaml.example for reference"
+            )
+
+        with open(config_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+
+        if not cfg:
+            raise ValueError("Configuration file is empty")
+
+        # Validate required sections
+        required_sections = ["qdrant", "embeddings"]
+        for section in required_sections:
+            if section not in cfg:
+                raise ValueError(f"Missing required config section: [{section}]")
+
+        # Validate required keys in qdrant section
+        if "url" not in cfg["qdrant"]:
+            raise ValueError(
+                "Missing required config: qdrant.url\n"
+                "Set via config.yaml or QDRANT_URL environment variable"
+            )
+        if "collection_name" not in cfg["qdrant"]:
+            raise ValueError("Missing required config: qdrant.collection_name")
+
+        logger.info(f"Configuration loaded successfully from {config_path}")
+        return cfg
+
+    except FileNotFoundError as e:
+        logger.error(f"Configuration error: {e}")
+        raise SystemExit(f"FATAL: {e}") from e
+    except yaml.YAMLError as e:
+        logger.error(f"Invalid YAML in config.yaml: {e}")
+        raise SystemExit(
+            f"FATAL: Configuration file syntax error: {e}\n"
+            f"Please check {config_path} for YAML syntax errors"
+        ) from e
+    except (KeyError, ValueError) as e:
+        logger.error(f"Configuration validation failed: {e}")
+        raise SystemExit(f"FATAL: {e}") from e
+
+
 # Load configuration
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-with open(CONFIG_PATH, encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+config = load_configuration(CONFIG_PATH)
 
 # Initialize MCP server
 mcp = FastMCP("Architectural DNA")

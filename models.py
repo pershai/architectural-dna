@@ -73,20 +73,45 @@ class Language(str, Enum):
 
     @classmethod
     def from_content(cls, content: str, extension: str = "") -> "Language":
-        """Detect language from file content.
+        """Detect language from file content using heuristic patterns.
 
-        Uses multiple heuristics:
-        1. Shebang detection
-        2. Keyword pattern matching
-        3. Syntax patterns
-        4. Fallback to extension
+        Uses multiple heuristics to detect language from code content. Detection is
+        based on keyword patterns and syntax indicators, not exhaustive parsing.
+
+        Detection Strategy (checked in order):
+        1. Shebang detection: #!/usr/bin/env python, #!/usr/bin/node, etc.
+        2. C# keywords: "using System" + "namespace" + braces
+        3. Java keywords: "package" + "import java"
+        4. Python indicators: "def"/"import" without braces in first 200 chars
+        5. TypeScript: Type annotations (": string", "interface", "export type")
+        6. JavaScript: Functions/variables without type hints
+        7. Go: "package" + ("func" or "type"/"struct")
+        8. Extension fallback: Use file extension if content is ambiguous
+        9. Return UNKNOWN if no matches
+
+        Limitations (IMPORTANT):
+        - Heuristic-based, not syntactically accurate parsing
+        - First 500 characters scanned (may miss language indicators in larger files)
+        - Can produce false positives for:
+          * Comments containing language keywords
+          * String literals with keywords
+          * Mixed-language files (e.g., Python with embedded SQL)
+        - Extension fallback recommended for ambiguous files
 
         Args:
-            content: File content (first 500 chars recommended)
-            extension: File extension as fallback
+            content: File content (first 500 characters are analyzed)
+            extension: File extension as fallback (e.g., ".py", ".java", ".go")
 
         Returns:
-            Detected language
+            Detected Language enum value (may be UNKNOWN if detection fails)
+
+        Examples:
+            >>> Language.from_content("#!/usr/bin/python\\nprint('hi')")
+            <Language.PYTHON: 'python'>
+            >>> Language.from_content("package main\\nfunc main()")
+            <Language.GO: 'go'>
+            >>> Language.from_content("unclear code", ".ts")
+            <Language.TYPESCRIPT: 'typescript'>  # Falls back to extension
         """
         header = content[:500]
 

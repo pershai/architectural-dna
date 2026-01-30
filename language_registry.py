@@ -3,6 +3,8 @@
 Provides lazy-loading and caching of tree-sitter parsers for multiple languages.
 """
 
+from __future__ import annotations
+
 import importlib
 import logging
 from dataclasses import dataclass, field
@@ -36,7 +38,7 @@ class LanguageConfig:
         node_type_docs: Documentation of AST node types (optional)
     """
 
-    language: "Language"  # Type hint as string to avoid circular import at runtime
+    language: Language  # Resolved via __future__ annotations
     parser_module: str
     type_declarations: dict[str, str] = field(default_factory=dict)
     query_strategy: str = "recursive"
@@ -200,6 +202,27 @@ class LanguageRegistry:
             )
         )
 
+        # Go (uses pseudo-AST extraction, future AST enhancement)
+        self.register(
+            LanguageConfig(
+                language=Language.GO,
+                parser_module="tree_sitter_go",  # Not currently used, reserved for future
+                type_declarations={
+                    "type_spec": "type",
+                    "function_declaration": "function",
+                    "struct_type": "struct",
+                    "interface_type": "interface",
+                },
+                query_strategy="recursive",
+                node_type_docs={
+                    "type_spec": "type Reader struct { }",
+                    "function_declaration": "func main() { }",
+                    "struct_type": "type Person struct { Name string }",
+                    "interface_type": "type Writer interface { Write() }",
+                },
+            )
+        )
+
     def register(self, config: LanguageConfig) -> None:
         """Register a language configuration.
 
@@ -221,17 +244,25 @@ class LanguageRegistry:
         Implements lazy loading with caching. Returns None if tree-sitter
         unavailable or language not registered.
 
+        IMPORTANT: This method does NOT retry failed parser initialization.
+        If tree-sitter fails to load on first call (ImportError, missing module),
+        subsequent calls will return None without attempting to reload. This is
+        intentional to avoid repeated failures in long-lived processes.
+
+        For dynamic environments where tree-sitter may become available later,
+        consider creating a fresh LanguageRegistry instance.
+
         Args:
             language: Target language (Language enum)
 
         Returns:
-            Parser instance or None if unavailable
+            Parser instance or None if unavailable (or failed to initialize)
         """
-        # Return cached parser
+        # Return cached parser (or cached None if initialization failed)
         if language in self._initialized:
             return self._parsers.get(language)
 
-        # Mark as initialized (even if fails, don't retry)
+        # Mark as initialized (even if fails, don't retry to avoid repeated errors)
         self._initialized.add(language)
 
         # Check if tree-sitter available

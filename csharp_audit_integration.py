@@ -175,21 +175,40 @@ class CSharpArchitecturalAuditor:
                     # Try multiple encodings
                     content = None
                     encoding_used = None
+                    encoding_error = None
+                    access_error = None
 
                     for encoding in ["utf-8", "utf-8-sig", "windows-1252"]:
                         try:
                             content = cs_file.read_text(encoding=encoding)
                             encoding_used = encoding
                             break
-                        except UnicodeDecodeError:
-                            continue
+                        except UnicodeDecodeError as e:
+                            encoding_error = e
+                            continue  # Try next encoding
                         except (PermissionError, OSError) as e:
-                            logger.warning(f"Cannot read {cs_file}: {e}")
-                            break
+                            access_error = e
+                            logger.error(
+                                f"Permission denied or file system error reading {cs_file}: {e}",
+                                exc_info=True,
+                            )
+                            break  # Don't try other encodings for access errors
 
+                    # Check for permission errors first (more serious)
+                    if access_error:
+                        logger.warning(
+                            f"Skipping {cs_file}: Permission denied or file system error. "
+                            f"Check file permissions and disk accessibility."
+                        )
+                        files_skipped += 1
+                        continue
+
+                    # Then check for encoding errors
                     if content is None:
                         logger.warning(
-                            f"Skipping {cs_file}: failed to decode with any encoding"
+                            f"Skipping {cs_file}: Failed to decode with supported encodings. "
+                            f"File may be binary or use unsupported encoding. "
+                            f"Last encoding error: {encoding_error}"
                         )
                         files_skipped += 1
                         continue

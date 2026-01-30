@@ -84,9 +84,11 @@ class TestLanguageRegistry:
         assert "class_definition" in config.type_declarations
         assert "function_definition" in config.type_declarations
 
-        # Get config for unregistered language
+        # Get config for Go (now registered with pseudo-AST support)
         config_go = registry.get_config(Language.GO)
-        assert config_go is None
+        assert config_go is not None
+        assert config_go.language == Language.GO
+        assert config_go.parser_module == "tree_sitter_go"
 
     def test_registry_unsupported_language(self):
         """Test handling of unsupported languages."""

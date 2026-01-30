@@ -1,6 +1,7 @@
 """Shared C# code parsing utilities."""
 
 import logging
+import time
 from dataclasses import dataclass
 from enum import Enum
 
@@ -83,8 +84,27 @@ class CSharpCodeParser:
         iterations = 0
         length = len(content_str)
 
+        # Safety timeout: prevent processing hangs on malformed input
+        max_duration_seconds = 30
+        start_time = time.time()
+
         while i < length and iterations < max_iterations:
             iterations += 1
+
+            # Check elapsed time periodically to prevent hangs
+            if iterations % 10000 == 0:
+                elapsed = time.time() - start_time
+                if elapsed > max_duration_seconds:
+                    fallback = (
+                        len(content) - 1
+                        if is_line_based
+                        else min(start_pos + 5000, length)
+                    )
+                    return BraceFindResult(
+                        end_position=fallback,
+                        success=False,
+                        reason=f"Processing timeout: exceeded {max_duration_seconds}s (iterations: {iterations})",
+                    )
 
             # Get current and next character
             char = content_str[i]

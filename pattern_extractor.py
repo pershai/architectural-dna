@@ -11,7 +11,23 @@ logger = logging.getLogger(__name__)
 
 
 class PatternExtractor:
-    """Extracts code patterns from source files using various strategies."""
+    """Extracts code patterns from source files using various strategies.
+
+    This class creates a new LanguageRegistry instance on initialization.
+    If you create multiple PatternExtractor instances, each will have its own
+    registry with independent parser loading and caching.
+
+    For applications creating many extractors, consider:
+    1. Reusing a single extractor instance across files
+    2. Using dependency injection to share a registry
+    3. Implementing a factory or singleton pattern
+
+    Performance Note:
+    Each PatternExtractor creation triggers parser initialization for all
+    supported languages (though parser loading is lazy, the registry
+    creation still has overhead). Reusing instances is recommended for
+    bulk processing.
+    """
 
     # Minimum lines for a chunk to be considered meaningful
     MIN_CHUNK_LINES = 5
@@ -19,9 +35,15 @@ class PatternExtractor:
     # Maximum lines for a single chunk (to avoid overwhelming the LLM)
     MAX_CHUNK_LINES = 150
 
-    def __init__(self):
-        """Initialize PatternExtractor with language registry."""
-        self._registry = LanguageRegistry()
+    def __init__(self, registry: LanguageRegistry | None = None):
+        """Initialize PatternExtractor with language registry.
+
+        Args:
+            registry: Optional LanguageRegistry instance to use. If None,
+                     creates a new registry. Use this parameter to share
+                     a registry across multiple extractors.
+        """
+        self._registry = registry or LanguageRegistry()
         supported = [lang.value for lang in self._registry.get_supported_languages()]
         logger.info(f"PatternExtractor initialized. AST support for: {supported}")
 
@@ -31,13 +53,16 @@ class PatternExtractor:
         """
         Extract code chunks from a file.
 
-        Extract code chunks using hierarchical strategy.
+        Extract code chunks using hierarchical strategy with fallbacks.
 
-        Strategy hierarchy:
+        Strategy hierarchy (first match wins):
         1. AST extraction (tree-sitter) if available for language
-        2. Pseudo-AST extraction for Go and unsupported languages
-        3. C# regex fallback for safety
-        4. Semantic chunking (final fallback)
+        2. Legacy regex extraction (fallback for Python, Java, JavaScript/TypeScript, C#)
+        3. Pseudo-AST extraction (Go with sophisticated regex patterns)
+        4. Semantic chunking (final fallback, always succeeds)
+
+        Each strategy is attempted in order. If a strategy returns chunks, processing stops.
+        If a strategy fails or returns no chunks, the next strategy is attempted.
 
         Args:
             content: File content
@@ -155,26 +180,46 @@ class PatternExtractor:
             )
             return []
 
-    def _query_recursive(self, root_node, type_map: dict[str, str]) -> list[tuple]:
-        """Recursively traverse AST to find type declarations.
+    def _query_recursive(
+        self, root_node, type_map: dict[str, str], max_depth: int = 1000
+    ) -> list[tuple]:
+        """Recursively traverse AST to find type declarations with depth limit.
 
         Args:
             root_node: Root AST node
             type_map: Map of AST node types to chunk types
+            max_depth: Maximum recursion depth to prevent stack overflow (default: 1000)
 
         Returns:
             List of (node, chunk_type) tuples
         """
         results = []
 
-        def traverse(node):
+        def traverse(node, depth: int = 0):
+            if depth > max_depth:
+                logger.warning(
+                    f"AST recursion depth exceeded {max_depth}, stopping traversal. "
+                    f"This may indicate deeply nested code structures."
+                )
+                return
+
             if node.type in type_map:
                 results.append((node, type_map[node.type]))
 
             for child in node.children:
-                traverse(child)
+                traverse(child, depth + 1)
 
-        traverse(root_node)
+        try:
+            traverse(root_node)
+        except RecursionError as e:
+            logger.error(
+                f"RecursionError during AST traversal (depth limit: {max_depth}): {e}",
+                exc_info=True,
+            )
+            logger.warning(
+                f"Returning partial results ({len(results)} items) due to recursion error"
+            )
+
         return results
 
     def _extract_node_text(self, node, content: str) -> str:

@@ -196,18 +196,42 @@ class GitHubClient:
             cached = self.cache.get(cache_key)
             if cached is not None:
                 logger.debug(f"Cache hit for file tree: {repo.full_name}")
-                # Convert cached dicts back to FileNode objects
-                return [
-                    FileNode(**node) if isinstance(node, dict) else node
-                    for node in cached
-                ]
+                # Convert cached dicts back to FileNode objects with validation
+                nodes = []
+                for item in cached:
+                    if isinstance(item, dict):
+                        try:
+                            nodes.append(FileNode(**item))
+                        except (KeyError, TypeError) as e:
+                            logger.warning(
+                                f"Failed to deserialize cached FileNode: {e}, fetching fresh"
+                            )
+                            break  # Invalidate cache and fetch fresh
+                    elif isinstance(item, FileNode):
+                        nodes.append(item)
+                    else:
+                        logger.warning(
+                            f"Unexpected item type in cache: {type(item)}, fetching fresh"
+                        )
+                        break  # Invalidate cache and fetch fresh
+                else:
+                    # All items validated successfully
+                    return nodes
+                # Cache was invalid, clear it and continue to fetch fresh
 
         nodes: list[FileNode] = []
 
         try:
             contents = repo.get_contents(path)
-        except Exception:
+        except FileNotFoundError:
+            logger.debug(f"Path does not exist in repository: {path}")
             return nodes
+        except Exception as e:
+            logger.error(
+                f"GitHub API error fetching {path}: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
+            raise ValueError(f"Failed to fetch repository tree for {path}") from e
 
         # Handle single file case
         if not isinstance(contents, list):
