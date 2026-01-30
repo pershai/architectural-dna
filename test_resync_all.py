@@ -1,5 +1,6 @@
 """Test script to resync all repositories via the DNA server."""
 
+# ruff: noqa: E402
 import os
 import sys
 from pathlib import Path
@@ -8,14 +9,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import yaml
 from qdrant_client import QdrantClient
 
+from embedding_manager import EmbeddingManager
 from tools import RepositoryTool
 from tools.batch_processor import BatchProcessor
-from embedding_manager import EmbeddingManager
 
 # Repos to sync
 REPOS = [
@@ -41,7 +43,7 @@ def main():
 
     # Load config
     config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Initialize embedding manager
@@ -83,7 +85,7 @@ def main():
             result = repo_tool.sync_github_repo(
                 repo_name=repo,
                 analyze_patterns=False,  # Skip LLM for faster testing
-                min_quality=1
+                min_quality=1,
             )
 
             # Show summary
@@ -91,9 +93,13 @@ def main():
                 # Extract key info from result
                 lines = result.split("\n")
                 for line in lines:
-                    if "Files processed" in line or "Patterns stored" in line or "batch" in line.lower():
+                    if (
+                        "Files processed" in line
+                        or "Patterns stored" in line
+                        or "batch" in line.lower()
+                    ):
                         print(f"  {line.strip()}")
-                print(f"  [OK] Done")
+                print("  [OK] Done")
             else:
                 print(f"  Result: {result[:200]}...")
 

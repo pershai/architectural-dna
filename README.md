@@ -18,11 +18,13 @@ Architectural DNA helps you:
 
 ## Features
 
-- 🔍 **Multi-language Support** - Python, Java, JavaScript/TypeScript, Go
+- 🔍 **Multi-language Support** - Python, Java, JavaScript/TypeScript, C#, Go
+- 🎯 **C# Architectural Intelligence** - Advanced semantic analysis, DI mapping, LCOM metrics, async-over-sync detection
 - 🤖 **LLM-Powered Analysis** - Intelligent pattern recognition and quality scoring
 - 📊 **Vector Search** - Semantic search across all your code patterns
 - 🏗️ **Smart Scaffolding** - Generate new projects that follow your team's conventions
 - 🔌 **MCP Integration** - Works with any MCP-compatible AI client (Claude Desktop, IDEs)
+- 📋 **Architectural Auditing** - 9 audit rules for C# projects with JSON/Markdown/SARIF reports
 
 ## Architecture
 
@@ -37,6 +39,87 @@ The system implements a complete RAG (Retrieval-Augmented Generation) pipeline:
 - **Generation**: LLM generates new projects using relevant patterns as context
 
 ## Advanced Features
+
+### C# Architectural Intelligence
+
+The system provides **enterprise-grade C# analysis** with unique capabilities not found in traditional linters:
+
+#### 🧬 Semantic Analysis
+- **Attribute-based Role Detection**: Automatically categorizes classes as Controllers, Services, Repositories, Handlers, etc.
+- **Dependency Injection Mapping**: Extracts `AddScoped`, `AddTransient`, `AddSingleton` from `Program.cs`/`Startup.cs` and links interfaces to implementations
+- **Partial Class Aggregation**: Merges partial class definitions across files with automatic metrics summing
+
+#### 📊 Advanced Metrics
+- **LCOM (Lack of Cohesion in Methods)**: Detects God Objects by measuring class cohesion (0.0-1.0 scale)
+- **Cyclomatic Complexity**: Per-method complexity tracking with configurable thresholds
+- **Instability Index**: Namespace-level stability analysis for architectural layering
+
+#### 🔍 Architectural Audit Rules (9 Rules)
+| Rule ID | Name | Description |
+|---------|------|-------------|
+| `ARCH_001` | Cyclic Dependencies | Detects namespace-level circular dependencies |
+| `ARCH_002` | Dependency Direction | Enforces clean architecture (Domain←Application←Infrastructure←Web) |
+| `DESIGN_001` | God Object Detection | Flags classes with high LCOM (>0.8), high LOC (>500), or excessive dependencies |
+| `DATA_001` | SQL Access Restrictions | Prevents direct SQL in Application/Web layers (MediatR compliance) |
+| `DATA_002` | Repository Interfaces | Ensures repositories implement interfaces |
+| `MEDIATR_001` | Handler Interface | Validates MediatR handler implementations |
+| `ATTR_001` | Controller Attributes | Ensures `[ApiController]` and `[Route]` on controllers |
+| `ASYNC_001` | Async Void | Warns about `async void` methods (except event handlers) |
+| `ASYNC_002` | Async Over Sync | Detects `.Result`, `.Wait()`, `Task.WaitAll` (deadlock risks) |
+
+#### 🎨 Design Pattern Recognition (18 Patterns)
+Automatically detects:
+- **Creational**: Singleton, Factory, Builder, Prototype
+- **Structural**: Adapter, Decorator, Facade, Proxy
+- **Behavioral**: Observer, Strategy, Command, Chain of Responsibility, State
+- **Enterprise**: Repository, Unit of Work, CQRS, Event Sourcing, Pub/Sub
+
+#### 📋 Multi-Format Reports
+- **JSON**: CI/CD integration, automated analysis
+- **Markdown**: Human-readable documentation with violation summaries
+- **SARIF**: IDE integration (Visual Studio Code, Visual Studio) for inline warnings
+
+#### 🚀 Example Usage
+```python
+# Via MCP tool
+analyze_csharp_project(
+    project_path="/path/to/csharp/project",
+    repo_name="mycompany/myproject",
+    output_dir="audit_reports"
+)
+
+# Returns:
+# ✅ Total Types Analyzed: 127
+# 🔴 ERROR: 3 violations
+# ⚠️ WARNING: 12 violations
+# 📁 Reports: JSON, Markdown, SARIF
+```
+
+**Configuration** (`config.yaml`):
+```yaml
+csharp_audit:
+  metrics:
+    lcom_threshold: 0.8          # God Object detection
+    loc_threshold: 500           # Large class detection
+    cyclomatic_complexity_limit: 15
+
+  dependencies:
+    max_per_class: 7             # Dependency injection limit
+    max_per_namespace: 50
+
+  patterns:
+    include_partial_classes: true
+    extract_di_registrations: true
+    detect_async_patterns: true
+    detect_design_patterns: true
+```
+
+**Benefits**:
+- ✅ Enforce architectural layering (Clean Architecture, Onion Architecture)
+- ✅ Prevent common C# anti-patterns (async-over-sync, God Objects)
+- ✅ Ensure MediatR/CQRS compliance
+- ✅ IDE integration via SARIF (inline warnings)
+- ✅ CI/CD integration via JSON reports
 
 ### Code-Optimized Embeddings
 
@@ -320,6 +403,47 @@ Returns information about:
 - Preprocessing settings
 - All supported embedding models
 
+#### 8. `analyze_csharp_project` - Analyze C# project architecture
+```json
+{
+  "project_path": "/path/to/csharp/project",
+  "repo_name": "mycompany/myproject",
+  "output_dir": "csharp_audit_reports"
+}
+```
+
+Performs comprehensive C# architectural analysis:
+- Extracts patterns from .cs files
+- Runs 9 architectural audit rules
+- Detects 18 design patterns
+- Calculates LCOM and complexity metrics
+- Generates JSON/Markdown/SARIF reports
+
+**Example Output**:
+```
+✅ C# Project Analysis Complete
+
+📊 Summary:
+  • Total Types Analyzed: 127
+  • Total Violations: 15
+  • Violations by Severity:
+    🔴 ERROR: 3
+    ⚠️ WARNING: 12
+    ℹ️ INFO: 0
+
+📁 Reports Generated:
+  • JSON: csharp_audit_reports/myproject_audit.json
+  • Markdown: csharp_audit_reports/myproject_audit.md
+  • SARIF (IDE): csharp_audit_reports/myproject_audit.sarif
+
+🎯 Top 5 Rules Violated:
+  1. DESIGN_001 (God Objects): 5 violations
+  2. ASYNC_002 (Async Over Sync): 4 violations
+  3. ARCH_002 (Dependency Direction): 3 violations
+  4. DATA_001 (SQL in Application Layer): 2 violations
+  5. ATTR_001 (Missing Controller Attributes): 1 violation
+```
+
 ### Command-Line Utilities
 
 **Discover DNA from local directory:**
@@ -431,6 +555,7 @@ extraction:
 | Python | .py | tree-sitter-python |
 | Java | .java | tree-sitter-java |
 | JavaScript/TypeScript | .js, .ts, .jsx, .tsx | tree-sitter-javascript |
+| **C#** | .cs | Regex-based | **Architectural auditing, DI mapping, LCOM metrics, 18 design patterns** |
 | Go | .go | Semantic chunking |
 
 ### Pattern Categories
@@ -481,6 +606,34 @@ extraction:
 # - Error handling matching your style
 # - README and setup instructions
 ```
+
+### Example 4: Audit C# Project Architecture
+
+```python
+"Analyze the C# project at /path/to/MyProject.API"
+
+# The server will:
+# 1. Parse all .cs files in the project
+# 2. Extract architectural patterns (Controllers, Services, Repositories)
+# 3. Calculate metrics (LCOM, Cyclomatic Complexity)
+# 4. Run 9 architectural audit rules
+# 5. Detect 18 design patterns
+# 6. Generate reports in 3 formats (JSON, Markdown, SARIF)
+
+# Returns:
+# ✅ Total Types Analyzed: 127
+# 🔴 ERROR: 3 violations (God Objects, SQL in Application Layer)
+# ⚠️ WARNING: 12 violations (Missing Interfaces, Async-over-Sync)
+# 📁 Reports: JSON, Markdown, SARIF (for Visual Studio/VS Code)
+```
+
+**Common C# Violations Detected**:
+- 🔴 **God Objects**: Classes with LCOM > 0.8, LOC > 500, or >7 dependencies
+- 🔴 **SQL in Application Layer**: Direct database access in Controllers/Handlers
+- ⚠️ **Async-over-Sync**: Using `.Result` or `.Wait()` (deadlock risk)
+- ⚠️ **Cyclic Dependencies**: Namespace-level circular references
+- ⚠️ **Missing Repository Interfaces**: Repositories without interfaces
+- ⚠️ **Dependency Direction**: Domain layer depending on Application layer
 
 ## How It Works
 
@@ -559,19 +712,82 @@ Log levels:
 
 ```
 architectural-dna/
-├── dna_server.py          # MCP server with tool definitions
-├── models.py              # Data models (Pattern, CodeChunk, etc.)
-├── github_client.py       # GitHub API integration
-├── github_cache.py        # LRU cache with TTL for GitHub API
-├── pattern_extractor.py   # AST-based code parsing
-├── llm_analyzer.py        # Gemini pattern analysis
-├── scaffolder.py          # Project generation
-├── constants.py           # Centralized configuration constants
-├── discover_dna.py        # Local directory indexing
-├── config.yaml            # Configuration
-├── SKILL.md               # Claude Code skill with workflow guidance
-├── requirements.txt       # Python dependencies
-└── .env                   # Environment variables (gitignored)
+│
+├─ 🔌 Core MCP Server
+│  ├── dna_server.py                 # MCP server with tool definitions + C# analysis tools
+│  ├── models.py                     # Data models (Pattern, CodeChunk, etc.)
+│  └── constants.py                  # Centralized configuration constants
+│
+├─ 🧬 Pattern Extraction & Analysis
+│  ├── pattern_extractor.py          # AST-based code parsing (tree-sitter) + C# chunks
+│  ├── llm_analyzer.py               # Gemini LLM pattern analysis
+│  ├── embedding_manager.py          # Vector embedding and storage
+│  ├── hybrid_search.py              # Semantic + keyword search
+│  └── scaffolder.py                 # Project generation from patterns
+│
+├─ 🔐 GitHub Integration
+│  ├── github_client.py              # GitHub API client + error handling
+│  ├── github_cache.py               # LRU cache with TTL for GitHub API
+│  ├── discover_dna.py               # Local directory indexing
+│  ├── manual_list_repos.py          # Repo listing utility
+│  └── migrate_collection.py         # Qdrant collection migration
+│
+├─ 🔷 C# Advanced Analysis (Enterprise Features)
+│  ├── csharp_semantic_analyzer.py   # Semantic analysis, DI mapping, LCOM + enhanced error handling
+│  ├── csharp_audit_engine.py        # 9 architectural audit rules + return type validation
+│  ├── csharp_audit_reporter.py      # JSON/Markdown/SARIF report generation
+│  ├── csharp_audit_integration.py   # DNA system integration + path validation + cleanup logging
+│  ├── csharp_pattern_detector.py    # 18 design pattern detectors
+│  ├── csharp_code_parser.py         # C# brace-finding utility
+│  └── csharp_constants.py           # C# analysis constants and thresholds
+│
+├─ 🛠️ MCP Tools & Services
+│  └── tools/
+│      ├── base.py                   # Base tool interface
+│      ├── batch_processor.py        # Batch processing for repos
+│      ├── pattern_tool.py           # Pattern storage and search
+│      ├── repository_tool.py        # Repository operations
+│      ├── scaffold_tool.py          # Project scaffolding
+│      ├── maintenance_tool.py       # System maintenance
+│      └── stats_tool.py             # Database statistics
+│
+├─ 🧪 Test Suite
+│  ├── conftest.py                   # Pytest fixtures and configuration
+│  ├── test_csharp_*.py              # C# analysis tests
+│  ├── test_csharp_code_parser.py    # CSharpCodeParser tests
+│  ├── test_pattern_*.py             # Pattern extraction tests
+│  ├── test_embedding_*.py           # Embedding & search tests
+│  ├── test_github_*.py              # GitHub integration tests
+│  ├── test_tools.py                 # MCP tool tests
+│  ├── test_models.py                # Data model tests
+│  └── test_batch*.py                # Batch processing tests
+│
+├─ 📦 Configuration & Deployment
+│  ├── config.yaml                   # Main configuration (embeddings, search, Qdrant, C# audit)
+│  ├── requirements.txt              # Python dependencies
+│  ├── Dockerfile                    # Docker container definition
+│  ├── docker-compose.yml            # Multi-service Docker setup
+│  ├── Makefile                      # Build and deployment commands
+│  ├── pytest.ini                    # Pytest configuration
+│  └── ruff.toml                     # Code linting configuration
+│
+├─ 📚 Documentation & Guides
+│  ├── README.md                     # Main documentation (you are here)
+│  ├── CLAUDE.md                     # Claude Code agent context
+│  ├── SKILL.md                      # Claude Code skill workflow
+│  ├── MCP_SETUP.md                  # MCP client configuration guide
+│  ├── SECURITY.md                   # Security and credential management
+│
+├─ 🗂️ Utilities & Data
+│  ├── scripts/                      # Utility scripts
+│  ├── data/                         # Sample data and test fixtures
+│  └── .github/workflows/            # CI/CD GitHub Actions
+│
+└─ 🔑 Environment & Git
+   ├── .env.example                  # Environment variables template
+   ├── .env                          # Environment variables (gitignored)
+   ├── .gitignore                    # Git ignore rules
+   └── .git/                         # Git repository
 ```
 
 ### Adding New Languages
@@ -602,9 +818,12 @@ Contributions welcome! Areas for improvement:
 - [ ] Add more language support (C++, Rust, Ruby)
 - [x] ~~Implement caching for GitHub API responses~~ (Done - LRU cache with TTL)
 - [x] ~~Add batch processing for large repositories~~ (Done - BatchProcessor with progress tracking)
+- [x] ~~C# architectural intelligence~~ (Done - Semantic analysis, 9 audit rules, 18 design patterns)
+- [ ] Migrate C# to tree-sitter AST parsing (currently regex-based)
 - [ ] Create web UI for pattern browsing
 - [ ] Add export functionality (JSON, markdown)
 - [ ] Implement pattern versioning
+- [ ] Add more C# audit rules (SOLID principles, naming conventions)
 
 ## License
 

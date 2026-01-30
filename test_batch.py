@@ -1,7 +1,9 @@
 """Test batch processing functionality."""
 
+# ruff: noqa: E402
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+
+sys.stdout.reconfigure(encoding="utf-8")
 
 import os
 from pathlib import Path
@@ -10,13 +12,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import yaml
 from qdrant_client import QdrantClient
 
-from tools.batch_processor import BatchProcessor, BatchConfig, BatchProgress
 from embedding_manager import EmbeddingManager
+from tools.batch_processor import BatchConfig, BatchProcessor, BatchProgress
 
 
 def test_batch_progress():
@@ -65,7 +68,7 @@ def test_batch_processor_init():
 
     # Load config
     config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Initialize embedding manager
@@ -80,7 +83,7 @@ def test_batch_processor_init():
 
     # Initialize batch processor
     processor = BatchProcessor(client, collection_name, config)
-    print(f"BatchProcessor initialized")
+    print("BatchProcessor initialized")
     print(f"Collection: {processor.collection_name}")
 
     # Test progress file path generation
@@ -96,7 +99,7 @@ def test_progress_persistence():
 
     # Load config
     config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Initialize embedding manager
@@ -135,7 +138,7 @@ def test_progress_persistence():
     processor._clear_progress(test_repo)
     cleared = processor._load_progress(test_repo)
     assert cleared is None, "Progress should be cleared"
-    print(f"Progress cleared successfully")
+    print("Progress cleared successfully")
 
     print("[OK] Progress persistence tests passed")
 
@@ -151,7 +154,7 @@ def test_batch_sync_small_repo():
 
     # Load config
     config_path = Path(__file__).parent / "config.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Initialize embedding manager
@@ -173,12 +176,13 @@ def test_batch_sync_small_repo():
 
     # Initialize batch processor with progress callback
     def progress_callback(progress: BatchProgress):
-        print(f"  Progress: {progress.processed_files}/{progress.total_files} "
-              f"({progress.progress_percent:.1f}%) - {progress.current_file}")
+        print(
+            f"  Progress: {progress.processed_files}/{progress.total_files} "
+            f"({progress.progress_percent:.1f}%) - {progress.current_file}"
+        )
 
     processor = BatchProcessor(
-        client, collection_name, config,
-        progress_callback=progress_callback
+        client, collection_name, config, progress_callback=progress_callback
     )
 
     # Use a small public repo for testing
@@ -190,13 +194,11 @@ def test_batch_sync_small_repo():
     batch_config = BatchConfig(
         batch_size=5,
         analyze_patterns=False,  # Skip LLM for faster test
-        min_quality=1
+        min_quality=1,
     )
 
     result = processor.batch_sync_repo(
-        repo_name=test_repo,
-        batch_config=batch_config,
-        resume=False
+        repo_name=test_repo, batch_config=batch_config, resume=False
     )
 
     print(f"\nResult:\n{result}")

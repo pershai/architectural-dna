@@ -111,6 +111,25 @@ discovery:
     - ".jsx"
     - ".go"
     - ".java"
+    - ".cs"
+
+# C# Audit Configuration
+csharp_audit:
+  metrics:
+    # God Object Detection thresholds
+    lcom_threshold: 0.8          # Classes with LCOM > 0.8 have low cohesion
+    loc_threshold: 500           # Classes with > 500 LOC are too large
+    cyclomatic_complexity_limit: 15  # Max cyclomatic complexity per method
+
+  dependencies:
+    max_per_class: 7             # Maximum dependencies per class
+    max_per_namespace: 50        # Maximum external dependencies per namespace
+
+  patterns:
+    include_partial_classes: true     # Aggregate partial classes
+    extract_di_registrations: true    # Extract from Program.cs/Startup.cs
+    detect_async_patterns: true       # Detect async-over-sync issues
+    detect_design_patterns: true      # Detect design patterns (Singleton, Factory, CQRS, etc.)
 
 # Scaffolding Configuration
 scaffolding:

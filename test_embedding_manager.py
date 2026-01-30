@@ -1,7 +1,9 @@
 """Tests for EmbeddingManager."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+
 from embedding_manager import EmbeddingManager
 
 
@@ -18,14 +20,14 @@ class TestEmbeddingManager:
                     "normalize_whitespace": True,
                     "remove_empty_lines": False,
                     "include_comments": True,
-                    "include_docstrings": True
+                    "include_docstrings": True,
                 },
                 "chunking": {
                     "enabled": True,
                     "max_chunk_size": 512,
                     "chunk_overlap": 50,
-                    "strategy": "smart"
-                }
+                    "strategy": "smart",
+                },
             }
         }
 
@@ -55,8 +57,8 @@ class TestEmbeddingManager:
         """Test warning for unsupported model."""
         basic_config["embeddings"]["model"] = "unknown/model"
 
-        with patch('embedding_manager.logger') as mock_logger:
-            manager = EmbeddingManager(basic_config)
+        with patch("embedding_manager.logger") as mock_logger:
+            EmbeddingManager(basic_config)
             mock_logger.warning.assert_called()
 
     # ==========================================================================
@@ -105,7 +107,7 @@ class TestEmbeddingManager:
         manager = EmbeddingManager(basic_config)
         mock_client = Mock()
 
-        with patch('embedding_manager.logger') as mock_logger:
+        with patch("embedding_manager.logger") as mock_logger:
             manager.setup_qdrant_client(mock_client)
             mock_logger.warning.assert_called()
             mock_client.set_model.assert_not_called()
@@ -145,11 +147,11 @@ class TestEmbeddingManager:
         basic_config["embeddings"]["preprocessing"]["include_comments"] = False
         manager = EmbeddingManager(basic_config)
 
-        code = '''x = 1  // inline comment
+        code = """x = 1  // inline comment
 y = 2  # python comment
 /* block
 comment */
-z = 3'''
+z = 3"""
         result = manager.preprocess_code(code)
 
         assert "inline comment" not in result
@@ -218,20 +220,24 @@ def bar():
     def test_simple_chunk(self, basic_config):
         """Test simple chunking strategy."""
         basic_config["embeddings"]["chunking"]["strategy"] = "simple"
-        basic_config["embeddings"]["chunking"]["max_chunk_size"] = 20  # Very small for testing
+        basic_config["embeddings"]["chunking"]["max_chunk_size"] = (
+            20  # Very small for testing
+        )
         manager = EmbeddingManager(basic_config)
 
         code = "a" * 500  # 500 chars
         chunks = manager._simple_chunk(code, 20, 5)
 
         assert len(chunks) > 1
-        for i, (chunk_text, metadata) in enumerate(chunks):
+        for i, (_chunk_text, metadata) in enumerate(chunks):
             assert metadata["chunk_index"] == i
             assert metadata["total_chunks"] == len(chunks)
 
     def test_smart_chunk(self, basic_config):
         """Test smart chunking strategy."""
-        basic_config["embeddings"]["chunking"]["max_chunk_size"] = 50  # Small for testing
+        basic_config["embeddings"]["chunking"]["max_chunk_size"] = (
+            50  # Small for testing
+        )
         manager = EmbeddingManager(basic_config)
 
         code = "\n".join([f"line {i}" for i in range(100)])
@@ -240,7 +246,7 @@ def bar():
         assert len(chunks) > 1
         # Verify metadata
         total = len(chunks)
-        for chunk_text, metadata in chunks:
+        for _chunk_text, metadata in chunks:
             assert metadata["total_chunks"] == total
 
     # ==========================================================================

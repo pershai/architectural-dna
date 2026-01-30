@@ -47,7 +47,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def get_env_or_header(key: str, header_key: str, default: str = None) -> str:
+def get_env_or_header(
+    key: str, header_key: str, default: str | None = None
+) -> str | None:
     """Get value from environment variable, with header override support.
 
     Priority: Environment variable > Default
@@ -56,10 +58,67 @@ def get_env_or_header(key: str, header_key: str, default: str = None) -> str:
     return os.getenv(key, default)
 
 
+def load_configuration(config_path: Path) -> dict:
+    """Load and validate configuration file.
+
+    Args:
+        config_path: Path to config.yaml
+
+    Returns:
+        Validated configuration dictionary
+
+    Raises:
+        SystemExit: If configuration is missing, invalid, or incomplete
+    """
+    try:
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Configuration file not found: {config_path}\n"
+                f"Please create config.yaml in {config_path.parent}\n"
+                f"See .env.example and config.yaml.example for reference"
+            )
+
+        with open(config_path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+
+        if not cfg:
+            raise ValueError("Configuration file is empty")
+
+        # Validate required sections
+        required_sections = ["qdrant", "embeddings"]
+        for section in required_sections:
+            if section not in cfg:
+                raise ValueError(f"Missing required config section: [{section}]")
+
+        # Validate required keys in qdrant section
+        if "url" not in cfg["qdrant"]:
+            raise ValueError(
+                "Missing required config: qdrant.url\n"
+                "Set via config.yaml or QDRANT_URL environment variable"
+            )
+        if "collection_name" not in cfg["qdrant"]:
+            raise ValueError("Missing required config: qdrant.collection_name")
+
+        logger.info(f"Configuration loaded successfully from {config_path}")
+        return cfg
+
+    except FileNotFoundError as e:
+        logger.error(f"Configuration error: {e}")
+        raise SystemExit(f"FATAL: {e}") from e
+    except yaml.YAMLError as e:
+        logger.error(f"Invalid YAML in config.yaml: {e}")
+        raise SystemExit(
+            f"FATAL: Configuration file syntax error: {e}\n"
+            f"Please check {config_path} for YAML syntax errors"
+        ) from e
+    except (KeyError, ValueError) as e:
+        logger.error(f"Configuration validation failed: {e}")
+        raise SystemExit(f"FATAL: {e}") from e
+
+
 # Load configuration
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-with open(CONFIG_PATH, encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+config = load_configuration(CONFIG_PATH)
 
 # Initialize MCP server
 mcp = FastMCP("Architectural DNA")
@@ -422,6 +481,119 @@ def get_category_stats() -> str:
         Category distribution statistics
     """
     return maintenance_tool.get_category_stats()
+
+
+@mcp.tool()
+def analyze_csharp_project(
+    project_path: str,
+    repo_name: str = "unknown-repo",
+    output_dir: str = "csharp_audit_reports",
+) -> str:
+    """
+    Analyze a C# project for architectural violations and patterns.
+
+    Uses advanced semantic analysis to detect architectural issues, generate
+    audit reports in multiple formats (JSON, Markdown, SARIF), and extract
+    architectural patterns for the DNA bank.
+
+    Args:
+        project_path: Path to C# project root or .csproj file
+        repo_name: Repository name for report naming (e.g., "mycompany/myproject")
+        output_dir: Directory for generated audit reports (default: csharp_audit_reports)
+
+    Returns:
+        Summary of analysis including violation counts and report locations
+    """
+    try:
+        from pathlib import Path
+
+        from csharp_audit_integration import CSharpArchitecturalAuditor
+        from csharp_audit_reporter import CSharpAuditReporter
+
+        logger.info(f"Starting C# project analysis: {project_path}")
+
+        auditor = CSharpArchitecturalAuditor()
+
+        # Analyze project
+        result = auditor.analyze_csharp_project(project_path)
+
+        # Validate analysis result
+        if not result:
+            raise ValueError("Project analysis returned no results")
+
+        audit_result = result.get("audit_result")
+        types = result.get("types", {})
+
+        if audit_result is None:
+            logger.warning(f"No audit result for {project_path}, creating empty result")
+            from csharp_audit_engine import AuditResult
+
+            audit_result = AuditResult(
+                total_types=0,
+                total_violations=0,
+                violations_by_severity={},
+                violations_by_rule={},
+                violations=[],
+            )
+
+        if not isinstance(types, dict):
+            logger.error(f"Invalid types in result: {type(types)}, expected dict")
+            types = {}
+
+        # Generate reports
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        # JSON report
+        json_path = Path(output_dir) / f"{repo_name}_audit.json"
+        CSharpAuditReporter.generate_json_report(audit_result, str(json_path), types)
+
+        # Markdown report
+        md_path = Path(output_dir) / f"{repo_name}_audit.md"
+        CSharpAuditReporter.generate_markdown_report(
+            audit_result, types, str(md_path), auditor.audit_engine.config
+        )
+
+        # SARIF report (for IDE integration)
+        sarif_path = Path(output_dir) / f"{repo_name}_audit.sarif"
+        CSharpAuditReporter.generate_sarif_report(audit_result, str(sarif_path))
+
+        # Build summary
+        summary = f"""C# Project Analysis Complete
+
+Summary:
+  • Total Types Analyzed: {audit_result.total_types}
+  • Total Violations: {audit_result.total_violations}
+  • Violations by Severity:"""
+
+        for severity, count in sorted(audit_result.violations_by_severity.items()):
+            summary += f"\n    {severity.upper()}: {count}"
+
+        summary += """
+
+Reports Generated:"""
+        summary += f"\n  • JSON: `{json_path}`"
+        summary += f"\n  • Markdown: `{md_path}`"
+        summary += f"\n  • SARIF (IDE): `{sarif_path}`"
+
+        summary += "\n\nTop 5 Rules Violated:"
+        for i, (rule_id, count) in enumerate(
+            sorted(audit_result.violations_by_rule.items(), key=lambda x: -x[1])[:5], 1
+        ):
+            summary += f"\n  {i}. {rule_id}: {count} violations"
+
+        logger.info(f"C# analysis completed successfully for {repo_name}")
+
+        return summary
+
+    except ImportError as e:
+        logger.warning(f"C# audit module import failed: {e}", exc_info=True)
+        return (
+            f"Error: C# audit module not available: {e}\n"
+            f"This feature requires: pip install -r requirements.txt"
+        )
+    except Exception as e:
+        logger.error(f"C# project analysis failed: {e}", exc_info=True)
+        return f"Error analyzing C# project: {str(e)}"
 
 
 def apply_header_overrides(headers: dict) -> dict:

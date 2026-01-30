@@ -1,13 +1,12 @@
 """Unit tests for BatchProcessor with mocks."""
 
-import pytest
 import tempfile
-from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from tools.batch_processor import BatchProcessor, BatchConfig, BatchProgress
-from models import Language, CodeChunk, PatternCategory
+import pytest
+
+from models import Language
+from tools.batch_processor import BatchConfig, BatchProcessor, BatchProgress
 
 
 class TestBatchProgress:
@@ -82,7 +81,7 @@ class TestBatchProgress:
             "failed_files": ["bad.py"],
             "current_file": "good.py",
             "started_at": "2024-01-15T10:00:00",
-            "last_updated": "2024-01-15T10:05:00"
+            "last_updated": "2024-01-15T10:05:00",
         }
 
         progress = BatchProgress.from_dict(data)
@@ -129,7 +128,7 @@ class TestBatchConfig:
             delay_between_batches=1.0,
             max_retries=5,
             analyze_patterns=False,
-            min_quality=3
+            min_quality=3,
         )
 
         assert config.batch_size == 20
@@ -153,12 +152,9 @@ class TestBatchProcessor:
                 "batch_size": 10,
                 "delay_between_batches": 0.1,
                 "max_retries": 2,
-                "progress_dir": ".test_batch_progress"
+                "progress_dir": ".test_batch_progress",
             },
-            "llm": {
-                "provider": "mock",
-                "min_quality_score": 5
-            }
+            "llm": {"provider": "mock", "min_quality_score": 5},
         }
 
     @pytest.fixture
@@ -175,7 +171,9 @@ class TestBatchProcessor:
         """Test processor initialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             test_config["batch"]["progress_dir"] = tmpdir
-            processor = BatchProcessor(mock_qdrant_client, "test_collection", test_config)
+            processor = BatchProcessor(
+                mock_qdrant_client, "test_collection", test_config
+            )
 
             assert processor.collection_name == "test_collection"
             assert processor.progress_callback is None
@@ -187,8 +185,10 @@ class TestBatchProcessor:
         with tempfile.TemporaryDirectory() as tmpdir:
             test_config["batch"]["progress_dir"] = tmpdir
             processor = BatchProcessor(
-                mock_qdrant_client, "test_collection", test_config,
-                progress_callback=callback
+                mock_qdrant_client,
+                "test_collection",
+                test_config,
+                progress_callback=callback,
             )
 
             assert processor.progress_callback == callback
@@ -208,10 +208,7 @@ class TestBatchProcessor:
 
     def test_get_default_batch_config_with_real_llm(self, mock_qdrant_client):
         """Test that analyze_patterns is True with real LLM provider."""
-        config = {
-            "batch": {},
-            "llm": {"provider": "gemini", "min_quality_score": 7}
-        }
+        config = {"batch": {}, "llm": {"provider": "gemini", "min_quality_score": 7}}
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config["batch"]["progress_dir"] = tmpdir
@@ -326,7 +323,7 @@ class TestBatchProcessor:
 
     def test_batch_sync_no_code_files(self, processor):
         """Test batch sync when repo has no code files."""
-        with patch.object(processor, 'get_github_client') as mock_gh:
+        with patch.object(processor, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = []
@@ -338,7 +335,7 @@ class TestBatchProcessor:
 
     def test_batch_sync_auth_error(self, processor):
         """Test batch sync with auth error."""
-        with patch.object(processor, 'get_github_client') as mock_gh:
+        with patch.object(processor, "get_github_client") as mock_gh:
             mock_gh.side_effect = ValueError("Invalid token")
 
             result = processor.batch_sync_repo("user/repo", BatchConfig())
@@ -348,7 +345,7 @@ class TestBatchProcessor:
 
     def test_batch_sync_general_error(self, processor):
         """Test batch sync with general error."""
-        with patch.object(processor, 'get_github_client') as mock_gh:
+        with patch.object(processor, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.side_effect = Exception("Network error")
             mock_gh.return_value = mock_client
@@ -362,12 +359,11 @@ class TestBatchProcessor:
         callback = Mock()
         config = {
             "batch": {"progress_dir": tempfile.mkdtemp()},
-            "llm": {"provider": "mock"}
+            "llm": {"provider": "mock"},
         }
 
         processor = BatchProcessor(
-            mock_qdrant_client, "test", config,
-            progress_callback=callback
+            mock_qdrant_client, "test", config, progress_callback=callback
         )
 
         mock_file = Mock()
@@ -380,7 +376,7 @@ class TestBatchProcessor:
         mock_chunk.chunk_type = "function"
         mock_chunk.name = "test"
 
-        with patch.object(processor, 'get_github_client') as mock_gh:
+        with patch.object(processor, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
@@ -388,15 +384,13 @@ class TestBatchProcessor:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(processor, 'get_pattern_extractor') as mock_ext:
+            with patch.object(processor, "get_pattern_extractor") as mock_ext:
                 mock_extractor = Mock()
                 mock_extractor.extract_chunks.return_value = [mock_chunk]
                 mock_ext.return_value = mock_extractor
 
                 config_obj = BatchConfig(
-                    batch_size=5,
-                    analyze_patterns=False,
-                    save_progress=False
+                    batch_size=5, analyze_patterns=False, save_progress=False
                 )
 
                 processor.batch_sync_repo("user/repo", config_obj, resume=False)
@@ -408,7 +402,7 @@ class TestBatchProcessor:
         """Test resuming batch sync from saved progress."""
         config = {
             "batch": {"progress_dir": tempfile.mkdtemp()},
-            "llm": {"provider": "mock"}
+            "llm": {"provider": "mock"},
         }
 
         processor = BatchProcessor(mock_qdrant_client, "test", config)
@@ -431,7 +425,7 @@ class TestBatchProcessor:
         mock_chunk.chunk_type = "function"
         mock_chunk.name = "test"
 
-        with patch.object(processor, 'get_github_client') as mock_gh:
+        with patch.object(processor, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = mock_files
@@ -439,13 +433,17 @@ class TestBatchProcessor:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(processor, 'get_pattern_extractor') as mock_ext:
+            with patch.object(processor, "get_pattern_extractor") as mock_ext:
                 mock_extractor = Mock()
                 mock_extractor.extract_chunks.return_value = [mock_chunk]
                 mock_ext.return_value = mock_extractor
 
                 config_obj = BatchConfig(analyze_patterns=False)
-                result = processor.batch_sync_repo("user/resume-repo", config_obj, resume=True)
+                result = processor.batch_sync_repo(
+                    "user/resume-repo", config_obj, resume=True
+                )
 
                 # Should complete successfully
-                assert "[OK]" in result or "No code" in result or "Successfully" in result
+                assert (
+                    "[OK]" in result or "No code" in result or "Successfully" in result
+                )

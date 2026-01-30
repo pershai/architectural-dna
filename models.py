@@ -52,6 +52,7 @@ class Language(str, Enum):
     JAVA = "java"
     JAVASCRIPT = "javascript"
     TYPESCRIPT = "typescript"
+    CSHARP = "csharp"
     GO = "go"
     UNKNOWN = "unknown"
 
@@ -65,9 +66,102 @@ class Language(str, Enum):
             ".ts": cls.TYPESCRIPT,
             ".tsx": cls.TYPESCRIPT,
             ".jsx": cls.JAVASCRIPT,
+            ".cs": cls.CSHARP,
             ".go": cls.GO,
         }
         return mapping.get(ext.lower(), cls.UNKNOWN)
+
+    @classmethod
+    def from_content(cls, content: str, extension: str = "") -> "Language":
+        """Detect language from file content using heuristic patterns.
+
+        Uses multiple heuristics to detect language from code content. Detection is
+        based on keyword patterns and syntax indicators, not exhaustive parsing.
+
+        Detection Strategy (checked in order):
+        1. Shebang detection: #!/usr/bin/env python, #!/usr/bin/node, etc.
+        2. C# keywords: "using System" + "namespace" + braces
+        3. Java keywords: "package" + "import java"
+        4. Python indicators: "def"/"import" without braces in first 200 chars
+        5. TypeScript: Type annotations (": string", "interface", "export type")
+        6. JavaScript: Functions/variables without type hints
+        7. Go: "package" + ("func" or "type"/"struct")
+        8. Extension fallback: Use file extension if content is ambiguous
+        9. Return UNKNOWN if no matches
+
+        Limitations (IMPORTANT):
+        - Heuristic-based, not syntactically accurate parsing
+        - First 500 characters scanned (may miss language indicators in larger files)
+        - Can produce false positives for:
+          * Comments containing language keywords
+          * String literals with keywords
+          * Mixed-language files (e.g., Python with embedded SQL)
+        - Extension fallback recommended for ambiguous files
+
+        Args:
+            content: File content (first 500 characters are analyzed)
+            extension: File extension as fallback (e.g., ".py", ".java", ".go")
+
+        Returns:
+            Detected Language enum value (may be UNKNOWN if detection fails)
+
+        Examples:
+            >>> Language.from_content("#!/usr/bin/python\\nprint('hi')")
+            <Language.PYTHON: 'python'>
+            >>> Language.from_content("package main\\nfunc main()")
+            <Language.GO: 'go'>
+            >>> Language.from_content("unclear code", ".ts")
+            <Language.TYPESCRIPT: 'typescript'>  # Falls back to extension
+        """
+        header = content[:500]
+
+        # 1. Shebang detection
+        if header.startswith("#!"):
+            first_line = header.split("\n")[0]
+            if "python" in first_line:
+                return cls.PYTHON
+            elif "node" in first_line or "javascript" in first_line:
+                return cls.JAVASCRIPT
+
+        # 2. C# indicators
+        if any(k in header for k in ["using System", "namespace "]) and (
+            "{" in header and ";" in header
+        ):
+            return cls.CSHARP
+
+        # 3. Java indicators
+        if "package " in header and "import java." in header:
+            return cls.JAVA
+
+        # 4. Python indicators (no braces, has 'def' or 'import')
+        if ("def " in header or "import " in header) and "{" not in header[:200]:
+            return cls.PYTHON
+
+        # 5. TypeScript indicators (has type annotations)
+        if any(
+            k in header for k in [": string", ": number", "interface ", "export type"]
+        ):
+            return cls.TYPESCRIPT
+
+        # 6. JavaScript indicators
+        if any(k in header for k in ["function ", "const ", "let ", "export {"]) and (
+            ": " not in header or "interface" not in header
+        ):
+            return cls.JAVASCRIPT
+
+        # 7. Go indicators
+        if any(k in header for k in ["package ", "func ", "type ", "struct {"]) and (
+            "package " in header
+            or ("type " in header and "struct {" in header)
+            or "func " in header
+        ):
+            return cls.GO
+
+        # 8. Fallback to extension
+        if extension:
+            return cls.from_extension(extension)
+
+        return cls.UNKNOWN
 
 
 @dataclass

@@ -1,9 +1,11 @@
 """Tests for LLMAnalyzer and MockLLMAnalyzer."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+
 from llm_analyzer import LLMAnalyzer, MockLLMAnalyzer
-from models import CodeChunk, Language, PatternCategory, PatternAnalysis
+from models import CodeChunk, Language, PatternAnalysis, PatternCategory
 
 
 class TestMockLLMAnalyzer:
@@ -34,7 +36,7 @@ class TestMockLLMAnalyzer:
             start_line=1,
             end_line=15,
             chunk_type="class",
-            name="UserService"
+            name="UserService",
         )
 
     @pytest.fixture
@@ -46,7 +48,7 @@ class TestMockLLMAnalyzer:
             start_line=1,
             end_line=1,
             chunk_type="statement",
-            name="assignment"
+            name="assignment",
         )
 
     def test_analyze_chunk_class_is_pattern(self, analyzer, class_chunk):
@@ -66,7 +68,9 @@ class TestMockLLMAnalyzer:
         assert analysis.is_pattern is False
         assert analysis.quality_score < 5
 
-    def test_analyze_chunks_filters_by_quality(self, analyzer, class_chunk, small_chunk):
+    def test_analyze_chunks_filters_by_quality(
+        self, analyzer, class_chunk, small_chunk
+    ):
         """Test that analyze_chunks filters by quality."""
         chunks = [class_chunk, small_chunk]
 
@@ -96,13 +100,15 @@ class TestLLMAnalyzer:
 
     def test_init_requires_api_key(self):
         """Test that initialization requires API key."""
-        with patch.dict('os.environ', {}, clear=True):
-            with pytest.raises(ValueError, match="Gemini API key required"):
-                LLMAnalyzer()
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            pytest.raises(ValueError, match="Gemini API key required"),
+        ):
+            LLMAnalyzer()
 
     def test_init_with_api_key_param(self):
         """Test initialization with API key parameter."""
-        with patch('llm_analyzer.genai') as mock_genai:
+        with patch("llm_analyzer.genai") as mock_genai:
             analyzer = LLMAnalyzer(api_key="test-key")
 
             mock_genai.Client.assert_called_once_with(api_key="test-key")
@@ -110,32 +116,34 @@ class TestLLMAnalyzer:
 
     def test_init_with_env_var(self):
         """Test initialization with environment variable."""
-        with patch.dict('os.environ', {'GEMINI_API_KEY': 'env-key'}):
-            with patch('llm_analyzer.genai') as mock_genai:
-                analyzer = LLMAnalyzer()
+        with (
+            patch.dict("os.environ", {"GEMINI_API_KEY": "env-key"}),
+            patch("llm_analyzer.genai") as mock_genai,
+        ):
+            LLMAnalyzer()
 
-                mock_genai.Client.assert_called_once_with(api_key="env-key")
+            mock_genai.Client.assert_called_once_with(api_key="env-key")
 
     def test_init_with_custom_model(self):
         """Test initialization with custom model."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key", model="gemini-1.5-pro")
 
             assert analyzer.model == "gemini-1.5-pro"
 
     def test_parse_response_valid_json(self):
         """Test parsing valid JSON response."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key")
 
-        response = '''{
+        response = """{
     "is_pattern": true,
     "title": "Repository Pattern",
     "description": "Data access abstraction layer",
     "category": "data_access",
     "quality_score": 8,
     "use_cases": ["Database operations", "Testing"]
-}'''
+}"""
         result = analyzer._parse_response(response)
 
         assert result is not None
@@ -147,10 +155,10 @@ class TestLLMAnalyzer:
 
     def test_parse_response_with_markdown(self):
         """Test parsing JSON wrapped in markdown."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key")
 
-        response = '''```json
+        response = """```json
 {
     "is_pattern": true,
     "title": "Service Pattern",
@@ -159,7 +167,7 @@ class TestLLMAnalyzer:
     "quality_score": 7,
     "use_cases": ["Service layer"]
 }
-```'''
+```"""
         result = analyzer._parse_response(response)
 
         assert result is not None
@@ -168,7 +176,7 @@ class TestLLMAnalyzer:
 
     def test_parse_response_invalid_json(self):
         """Test parsing invalid JSON."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key")
 
         result = analyzer._parse_response("not valid json")
@@ -177,17 +185,17 @@ class TestLLMAnalyzer:
 
     def test_parse_response_unknown_category(self):
         """Test parsing response with unknown category."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key")
 
-        response = '''{
+        response = """{
     "is_pattern": true,
     "title": "Test Pattern",
     "description": "Test",
     "category": "unknown_category",
     "quality_score": 5,
     "use_cases": []
-}'''
+}"""
         result = analyzer._parse_response(response)
 
         assert result is not None
@@ -195,7 +203,7 @@ class TestLLMAnalyzer:
 
     def test_parse_response_clamps_quality_score(self):
         """Test that quality score is clamped to 1-10."""
-        with patch('llm_analyzer.genai'):
+        with patch("llm_analyzer.genai"):
             analyzer = LLMAnalyzer(api_key="test-key")
 
         # Test high score
@@ -210,7 +218,7 @@ class TestLLMAnalyzer:
 
     def test_analyze_chunk_success(self):
         """Test successful chunk analysis."""
-        with patch('llm_analyzer.genai') as mock_genai:
+        with patch("llm_analyzer.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
             mock_response = MagicMock()
@@ -225,7 +233,7 @@ class TestLLMAnalyzer:
                 start_line=1,
                 end_line=1,
                 chunk_type="function",
-                name="test"
+                name="test",
             )
 
             result = analyzer.analyze_chunk(chunk)
@@ -236,7 +244,7 @@ class TestLLMAnalyzer:
 
     def test_analyze_chunk_api_error(self):
         """Test chunk analysis handles API errors."""
-        with patch('llm_analyzer.genai') as mock_genai:
+        with patch("llm_analyzer.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
             mock_client.models.generate_content.side_effect = Exception("API Error")
@@ -249,7 +257,7 @@ class TestLLMAnalyzer:
                 start_line=1,
                 end_line=1,
                 chunk_type="function",
-                name="test"
+                name="test",
             )
 
             result = analyzer.analyze_chunk(chunk)
@@ -258,7 +266,7 @@ class TestLLMAnalyzer:
 
     def test_analyze_chunks_filters_results(self):
         """Test analyze_chunks filters by pattern and quality."""
-        with patch('llm_analyzer.genai') as mock_genai:
+        with patch("llm_analyzer.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
 
@@ -273,12 +281,33 @@ class TestLLMAnalyzer:
 
             analyzer = LLMAnalyzer(api_key="test-key")
             chunks = [
-                CodeChunk(content="code1", file_path="a.py", language=Language.PYTHON,
-                          start_line=1, end_line=1, chunk_type="function", name="a"),
-                CodeChunk(content="code2", file_path="b.py", language=Language.PYTHON,
-                          start_line=1, end_line=1, chunk_type="function", name="b"),
-                CodeChunk(content="code3", file_path="c.py", language=Language.PYTHON,
-                          start_line=1, end_line=1, chunk_type="function", name="c"),
+                CodeChunk(
+                    content="code1",
+                    file_path="a.py",
+                    language=Language.PYTHON,
+                    start_line=1,
+                    end_line=1,
+                    chunk_type="function",
+                    name="a",
+                ),
+                CodeChunk(
+                    content="code2",
+                    file_path="b.py",
+                    language=Language.PYTHON,
+                    start_line=1,
+                    end_line=1,
+                    chunk_type="function",
+                    name="b",
+                ),
+                CodeChunk(
+                    content="code3",
+                    file_path="c.py",
+                    language=Language.PYTHON,
+                    start_line=1,
+                    end_line=1,
+                    chunk_type="function",
+                    name="c",
+                ),
             ]
 
             results = analyzer.analyze_chunks(chunks, min_quality=5)
@@ -289,7 +318,7 @@ class TestLLMAnalyzer:
 
     def test_analysis_prompt_format(self):
         """Test that analysis prompt is properly formatted."""
-        with patch('llm_analyzer.genai') as mock_genai:
+        with patch("llm_analyzer.genai") as mock_genai:
             mock_client = MagicMock()
             mock_genai.Client.return_value = mock_client
             mock_response = MagicMock()
@@ -305,14 +334,14 @@ class TestLLMAnalyzer:
                 end_line=1,
                 chunk_type="function",
                 name="test",
-                context="import os"
+                context="import os",
             )
 
             analyzer.analyze_chunk(chunk)
 
             # Verify the prompt was constructed correctly
             call_args = mock_client.models.generate_content.call_args
-            prompt = call_args.kwargs['contents']
+            prompt = call_args.kwargs["contents"]
 
             assert "python" in prompt
             assert "def test(): pass" in prompt
