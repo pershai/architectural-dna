@@ -4,18 +4,10 @@ import logging
 import re
 from pathlib import Path
 
+from language_registry import LanguageRegistry
 from models import CodeChunk, Language
 
 logger = logging.getLogger(__name__)
-
-# Tree-sitter imports - lazy loaded for optional functionality
-_tree_sitter_available = False
-try:
-    from tree_sitter import Parser
-
-    _tree_sitter_available = True
-except ImportError:
-    logger.debug("tree-sitter not available, using regex-based extraction")
 
 
 class PatternExtractor:
@@ -28,38 +20,10 @@ class PatternExtractor:
     MAX_CHUNK_LINES = 150
 
     def __init__(self):
-        """Initialize PatternExtractor with optional tree-sitter support."""
-        self._ts_parser = None
-        self._ts_csharp_lang = None
-        self._init_treesitter()
-
-    def _init_treesitter(self) -> None:
-        """Initialize tree-sitter parser and C# language support.
-
-        Gracefully handles missing tree-sitter or language bindings.
-        """
-        if not _tree_sitter_available:
-            return
-
-        try:
-            # Build C# language library
-            from tree_sitter_c_sharp import language
-
-            self._ts_csharp_lang = language()
-            self._ts_parser = Parser()
-            self._ts_parser.set_language(self._ts_csharp_lang)
-            logger.info("Tree-sitter C# parser initialized successfully")
-        except ImportError as e:
-            logger.warning(
-                f"Tree-sitter C# language not available: {e}. "
-                "Falling back to regex extraction."
-            )
-            self._ts_parser = None
-            self._ts_csharp_lang = None
-        except Exception as e:
-            logger.error(f"Failed to initialize tree-sitter: {e}")
-            self._ts_parser = None
-            self._ts_csharp_lang = None
+        """Initialize PatternExtractor with language registry."""
+        self._registry = LanguageRegistry()
+        supported = [lang.value for lang in self._registry.get_supported_languages()]
+        logger.info(f"PatternExtractor initialized. AST support for: {supported}")
 
     def extract_chunks(
         self, content: str, file_path: str, language: Language
@@ -67,8 +31,13 @@ class PatternExtractor:
         """
         Extract code chunks from a file.
 
-        Uses language-appropriate parsing strategy.
-        Falls back to semantic chunking if AST parsing fails.
+        Extract code chunks using hierarchical strategy.
+
+        Strategy hierarchy:
+        1. AST extraction (tree-sitter) if available for language
+        2. Pseudo-AST extraction for Go and unsupported languages
+        3. C# regex fallback for safety
+        4. Semantic chunking (final fallback)
 
         Args:
             content: File content
@@ -78,30 +47,671 @@ class PatternExtractor:
         Returns:
             List of CodeChunk objects
         """
-        # Try language-specific extraction
+        # Strategy 1: Try AST extraction
+        if self._registry.supports_ast(language):
+            chunks = self._extract_ast_chunks(content, file_path, language)
+            if chunks:
+                logger.debug(f"Extracted {len(chunks)} chunks via AST: {file_path}")
+                return chunks
+
+        # Strategy 2: Try legacy regex extraction (fallback for when AST unavailable)
         if language == Language.PYTHON:
             chunks = self._extract_python_chunks(content, file_path)
+            if chunks:
+                logger.debug(
+                    f"Extracted {len(chunks)} chunks via Python regex: {file_path}"
+                )
+                return chunks
         elif language == Language.JAVA:
             chunks = self._extract_java_chunks(content, file_path)
+            if chunks:
+                logger.debug(
+                    f"Extracted {len(chunks)} chunks via Java regex: {file_path}"
+                )
+                return chunks
         elif language in (Language.JAVASCRIPT, Language.TYPESCRIPT):
             chunks = self._extract_js_chunks(content, file_path, language)
+            if chunks:
+                logger.debug(
+                    f"Extracted {len(chunks)} chunks via JS/TS regex: {file_path}"
+                )
+                return chunks
         elif language == Language.CSHARP:
-            # Try AST-based extraction first, fall back to regex
-            chunks = self._extract_csharp_ast_chunks(content, file_path)
-            if not chunks:
-                chunks = self._extract_csharp_chunks(content, file_path)
-            # Try AST-based extraction first, fall back to regex
-            chunks = self._extract_csharp_ast_chunks(content, file_path)
-            if not chunks:
-                chunks = self._extract_csharp_chunks(content, file_path)
-        else:
-            chunks = []
+            chunks = self._extract_csharp_chunks(content, file_path)
+            if chunks:
+                logger.debug(
+                    f"Extracted {len(chunks)} chunks via C# regex fallback: {file_path}"
+                )
+                return chunks
 
-        # Fallback to semantic chunking if no chunks found
-        if not chunks:
-            chunks = self._semantic_chunk(content, file_path, language)
+        # Strategy 3: Try Pseudo-AST (Go)
+        if language == Language.GO:
+            chunks = self._extract_pseudo_ast_chunks(content, file_path, language)
+            if chunks:
+                logger.debug(
+                    f"Extracted {len(chunks)} chunks via Pseudo-AST: {file_path}"
+                )
+                return chunks
+
+        # Strategy 4: Semantic chunking (final fallback, always succeeds)
+        chunks = self._semantic_chunk(content, file_path, language)
+        logger.debug(
+            f"Extracted {len(chunks)} chunks via semantic chunking: {file_path}"
+        )
+        return chunks
+
+    # ============================================================================
+    # Universal AST Extraction Methods
+    # ============================================================================
+
+    def _extract_ast_chunks(
+        self, content: str, file_path: str, language: Language
+    ) -> list[CodeChunk]:
+        """Extract chunks using tree-sitter AST parsing.
+
+        Universally applicable AST extraction that delegates to language-specific
+        query methods.
+
+        Args:
+            content: Source code
+            file_path: Path to file
+            language: Programming language
+
+        Returns:
+            List of extracted chunks (may be empty if extraction fails)
+        """
+        parser = self._registry.get_parser(language)
+        config = self._registry.get_config(language)
+
+        if not parser or not config:
+            return []
+
+        try:
+            # Parse code
+            tree = parser.parse(content.encode("utf-8"))
+            root = tree.root_node
+
+            # Get language-specific query method
+            query_method_name = f"_query_{language.value}_types"
+            query_method = getattr(self, query_method_name, None)
+
+            if not query_method:
+                logger.warning(
+                    f"No query method for {language.value}: {query_method_name}"
+                )
+                return []
+
+            # Extract chunks
+            chunks = query_method(root, content, file_path)
+
+            # Validate chunks
+            valid_chunks = [c for c in chunks if self._is_valid_chunk(c.content)]
+
+            return valid_chunks
+
+        except Exception as e:
+            logger.warning(
+                f"AST extraction failed for {file_path} ({language.value}): {e}"
+            )
+            return []
+
+    def _query_recursive(self, root_node, type_map: dict[str, str]) -> list[tuple]:
+        """Recursively traverse AST to find type declarations.
+
+        Args:
+            root_node: Root AST node
+            type_map: Map of AST node types to chunk types
+
+        Returns:
+            List of (node, chunk_type) tuples
+        """
+        results = []
+
+        def traverse(node):
+            if node.type in type_map:
+                results.append((node, type_map[node.type]))
+
+            for child in node.children:
+                traverse(child)
+
+        traverse(root_node)
+        return results
+
+    def _extract_node_text(self, node, content: str) -> str:
+        """Extract text from AST node, handling encoding safely.
+
+        Args:
+            node: AST node with start_byte and end_byte attributes
+            content: Source code (as string)
+
+        Returns:
+            Extracted text or empty string if extraction fails
+        """
+        try:
+            # Encode string to bytes for byte indexing
+            if isinstance(content, str):
+                byte_content = content.encode("utf-8")
+            else:
+                byte_content = content
+
+            extracted = byte_content[node.start_byte : node.end_byte]
+            return extracted.decode("utf-8")
+        except (UnicodeDecodeError, AttributeError, IndexError) as e:
+            logger.warning(f"Failed to extract node text: {e}")
+            return ""
+
+    def _extract_context(self, content: str, language: Language) -> str:
+        """Extract context (imports, package declarations) for a language.
+
+        Args:
+            content: Source code
+            language: Programming language
+
+        Returns:
+            Context string (imports, namespace, package, etc.)
+        """
+        if language == Language.PYTHON:
+            return self._extract_python_imports(content)
+        elif language == Language.JAVA:
+            return self._extract_java_context(content)
+        elif language in (Language.JAVASCRIPT, Language.TYPESCRIPT):
+            return self._extract_js_imports(content)
+        elif language == Language.CSHARP:
+            return self._extract_csharp_context(content)
+        elif language == Language.GO:
+            return self._extract_go_context(content)
+        else:
+            return ""
+
+    def _find_leading_decorations(
+        self, lines: list[str], start_line: int, language: Language
+    ) -> int:
+        """Find start line including decorators/attributes preceding a declaration.
+
+        Args:
+            lines: Source code lines
+            start_line: Declaration start line (0-indexed)
+            language: Programming language
+
+        Returns:
+            Start line including decorations (0-indexed)
+        """
+        decoration_patterns = {
+            Language.PYTHON: ("@",),
+            Language.JAVA: ("@",),
+            Language.CSHARP: ("[",),
+            Language.JAVASCRIPT: ("@",),
+            Language.TYPESCRIPT: ("@",),
+        }
+
+        patterns = decoration_patterns.get(language, ())
+        if not patterns:
+            return start_line
+
+        result_start = start_line
+        i = start_line - 1
+
+        while i >= 0:
+            stripped = lines[i].strip()
+            if any(stripped.startswith(p) for p in patterns) or not stripped:
+                result_start = i
+                i -= 1
+            else:
+                break
+
+        return result_start
+
+    # ============================================================================
+    # Language-Specific AST Query Methods
+    # ============================================================================
+
+    def _query_python_types(
+        self, root, content: str, file_path: str
+    ) -> list[CodeChunk]:
+        """Extract Python classes and functions from AST.
+
+        Args:
+            root: Root AST node
+            content: Source code
+            file_path: Path to file
+
+        Returns:
+            List of extracted CodeChunk objects
+        """
+        chunks = []
+        lines = content.split("\n")
+
+        # Get type map from registry
+        config = self._registry.get_config(Language.PYTHON)
+        if not config:
+            return []
+
+        type_map = config.type_declarations
+        context = self._extract_context(content, Language.PYTHON)
+
+        # Use recursive query strategy
+        query_results = self._query_recursive(root, type_map)
+
+        for node, chunk_type in query_results:
+            start_line = node.start_point[0]
+            end_line = node.end_point[0]
+
+            # Extract name from identifier child
+            name = None
+            for child in node.children:
+                if child.type == "identifier":
+                    name = self._extract_node_text(child, content)
+                    break
+
+            if not name:
+                continue
+
+            # Find decorators
+            decoration_start = self._find_leading_decorations(
+                lines, start_line, Language.PYTHON
+            )
+
+            chunk_content = "\n".join(lines[decoration_start : end_line + 1])
+
+            chunks.append(
+                CodeChunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    language=Language.PYTHON,
+                    start_line=decoration_start + 1,
+                    end_line=end_line + 1,
+                    chunk_type=chunk_type,
+                    name=name,
+                    context=context,
+                )
+            )
 
         return chunks
+
+    def _query_java_types(self, root, content: str, file_path: str) -> list[CodeChunk]:
+        """Extract Java classes and interfaces from AST.
+
+        Args:
+            root: Root AST node
+            content: Source code
+            file_path: Path to file
+
+        Returns:
+            List of extracted CodeChunk objects
+        """
+        chunks = []
+        lines = content.split("\n")
+
+        # Get type map from registry
+        config = self._registry.get_config(Language.JAVA)
+        if not config:
+            return []
+
+        type_map = config.type_declarations
+        context = self._extract_context(content, Language.JAVA)
+
+        # Use recursive query strategy
+        query_results = self._query_recursive(root, type_map)
+
+        for node, chunk_type in query_results:
+            start_line = node.start_point[0]
+            end_line = node.end_point[0]
+
+            # Extract name from identifier child
+            name = None
+            for child in node.children:
+                if child.type == "identifier":
+                    name = self._extract_node_text(child, content)
+                    break
+
+            if not name:
+                continue
+
+            # Find annotations
+            decoration_start = self._find_leading_decorations(
+                lines, start_line, Language.JAVA
+            )
+
+            chunk_content = "\n".join(lines[decoration_start : end_line + 1])
+
+            chunks.append(
+                CodeChunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    language=Language.JAVA,
+                    start_line=decoration_start + 1,
+                    end_line=end_line + 1,
+                    chunk_type=chunk_type,
+                    name=name,
+                    context=context,
+                )
+            )
+
+        return chunks
+
+    def _query_javascript_types(
+        self, root, content: str, file_path: str
+    ) -> list[CodeChunk]:
+        """Extract JavaScript/TypeScript classes and functions from AST.
+
+        Args:
+            root: Root AST node
+            content: Source code
+            file_path: Path to file
+
+        Returns:
+            List of extracted CodeChunk objects
+        """
+        chunks = []
+        lines = content.split("\n")
+
+        # Detect if TypeScript based on file extension
+        is_typescript = file_path.endswith(".ts") or file_path.endswith(".tsx")
+        language = Language.TYPESCRIPT if is_typescript else Language.JAVASCRIPT
+
+        # Get type map from registry
+        config = self._registry.get_config(language)
+        if not config:
+            return []
+
+        type_map = config.type_declarations
+        context = self._extract_context(content, language)
+
+        # Use recursive query strategy
+        query_results = self._query_recursive(root, type_map)
+
+        for node, chunk_type in query_results:
+            start_line = node.start_point[0]
+            end_line = node.end_point[0]
+
+            # Extract name - different methods for different node types
+            name = None
+
+            # For class_declaration, look for identifier child
+            if node.type == "class_declaration" or node.type == "function_declaration":
+                for child in node.children:
+                    if child.type == "identifier":
+                        name = self._extract_node_text(child, content)
+                        break
+
+            # For method_definition, look for property identifier
+            elif node.type == "method_definition":
+                for child in node.children:
+                    if child.type == "property_identifier":
+                        name = self._extract_node_text(child, content)
+                        break
+
+            if not name:
+                continue
+
+            # Find decorators
+            decoration_start = self._find_leading_decorations(
+                lines, start_line, language
+            )
+
+            chunk_content = "\n".join(lines[decoration_start : end_line + 1])
+
+            chunks.append(
+                CodeChunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    language=language,
+                    start_line=decoration_start + 1,
+                    end_line=end_line + 1,
+                    chunk_type=chunk_type,
+                    name=name,
+                    context=context,
+                )
+            )
+
+        return chunks
+
+    def _query_csharp_types(
+        self, root, content: str, file_path: str
+    ) -> list[CodeChunk]:
+        """Extract C# classes, interfaces, structs from AST.
+
+        Adapts existing _query_csharp_types logic to new interface.
+
+        Args:
+            root: Root AST node
+            content: Source code
+            file_path: Path to file
+
+        Returns:
+            List of extracted CodeChunk objects
+        """
+        chunks = []
+        lines = content.split("\n")
+
+        # Get type map from registry
+        config = self._registry.get_config(Language.CSHARP)
+        if not config:
+            return []
+
+        type_map = config.type_declarations
+        context = self._extract_context(content, Language.CSHARP)
+
+        # Use recursive query strategy
+        query_results = self._query_recursive(root, type_map)
+
+        for node, chunk_type in query_results:
+            start_line = node.start_point[0]
+            end_line = node.end_point[0]
+
+            # Extract name - first identifier child
+            name = None
+            for child in node.children:
+                if child.type == "identifier":
+                    name = self._extract_node_text(child, content)
+                    break
+
+            if not name:
+                continue
+
+            # Find attributes
+            decoration_start = self._find_leading_decorations(
+                lines, start_line, Language.CSHARP
+            )
+
+            chunk_content = "\n".join(lines[decoration_start : end_line + 1])
+
+            chunks.append(
+                CodeChunk(
+                    content=chunk_content,
+                    file_path=file_path,
+                    language=Language.CSHARP,
+                    start_line=decoration_start + 1,
+                    end_line=end_line + 1,
+                    chunk_type=chunk_type,
+                    name=name,
+                    context=context,
+                )
+            )
+
+        return chunks
+
+    # ============================================================================
+    # Pseudo-AST Extraction for Unsupported Languages
+    # ============================================================================
+
+    def _extract_pseudo_ast_chunks(
+        self, content: str, file_path: str, language: Language
+    ) -> list[CodeChunk]:
+        """Extract chunks using advanced regex-based pseudo-AST.
+
+        For languages without tree-sitter support, use sophisticated regex
+        patterns to detect structural elements.
+
+        Args:
+            content: Source code
+            file_path: Path to file
+            language: Programming language
+
+        Returns:
+            List of extracted chunks
+        """
+        if language == Language.GO:
+            return self._extract_go_pseudo_ast(content, file_path)
+        else:
+            # Unknown languages fall back to semantic chunking
+            return []
+
+    def _extract_go_pseudo_ast(self, content: str, file_path: str) -> list[CodeChunk]:
+        """Extract Go structures using pseudo-AST (regex-based).
+
+        Detects:
+        - Type definitions (struct, interface)
+        - Function declarations
+        - Method definitions
+
+        Args:
+            content: Go source code
+            file_path: Path to file
+
+        Returns:
+            List of extracted chunks
+        """
+        chunks = []
+        lines = content.split("\n")
+
+        # Extract package and imports
+        context = self._extract_context(content, Language.GO)
+
+        # Patterns for Go constructs
+        type_struct_pattern = re.compile(r"^type\s+(\w+)\s+struct\s*\{")
+        type_interface_pattern = re.compile(r"^type\s+(\w+)\s+interface\s*\{")
+        func_pattern = re.compile(r"^func\s+(\w+)\s*\(")
+        method_pattern = re.compile(r"^func\s+\([^)]+\)\s+(\w+)\s*\(")
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Check for type struct definition
+            type_match = type_struct_pattern.match(stripped)
+            if type_match:
+                type_name = type_match.group(1)
+                end_line = self._find_brace_block_end(lines, i)
+                chunk_content = "\n".join(lines[i : end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.GO,
+                            start_line=i + 1,
+                            end_line=end_line + 1,
+                            chunk_type="struct",
+                            name=type_name,
+                            context=context,
+                        )
+                    )
+                i = end_line + 1
+                continue
+
+            # Check for type interface definition
+            type_match = type_interface_pattern.match(stripped)
+            if type_match:
+                type_name = type_match.group(1)
+                end_line = self._find_brace_block_end(lines, i)
+                chunk_content = "\n".join(lines[i : end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.GO,
+                            start_line=i + 1,
+                            end_line=end_line + 1,
+                            chunk_type="interface",
+                            name=type_name,
+                            context=context,
+                        )
+                    )
+                i = end_line + 1
+                continue
+
+            # Check for method
+            method_match = method_pattern.match(stripped)
+            if method_match:
+                method_name = method_match.group(1)
+                end_line = self._find_brace_block_end(lines, i)
+                chunk_content = "\n".join(lines[i : end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.GO,
+                            start_line=i + 1,
+                            end_line=end_line + 1,
+                            chunk_type="method",
+                            name=method_name,
+                            context=context,
+                        )
+                    )
+                i = end_line + 1
+                continue
+
+            # Check for function
+            func_match = func_pattern.match(stripped)
+            if func_match:
+                func_name = func_match.group(1)
+                end_line = self._find_brace_block_end(lines, i)
+                chunk_content = "\n".join(lines[i : end_line + 1])
+
+                if self._is_valid_chunk(chunk_content):
+                    chunks.append(
+                        CodeChunk(
+                            content=chunk_content,
+                            file_path=file_path,
+                            language=Language.GO,
+                            start_line=i + 1,
+                            end_line=end_line + 1,
+                            chunk_type="function",
+                            name=func_name,
+                            context=context,
+                        )
+                    )
+                i = end_line + 1
+                continue
+
+            i += 1
+
+        if chunks:
+            logger.info(
+                f"Go Pseudo-AST extracted {len(chunks)} chunks from {file_path}"
+            )
+        else:
+            logger.debug(f"Go Pseudo-AST extracted 0 chunks from {file_path}")
+
+        return chunks
+
+    def _extract_go_context(self, content: str) -> str:
+        """Extract package and imports from Go code.
+
+        Args:
+            content: Go source code
+
+        Returns:
+            Context string containing package and imports
+        """
+        context_lines = []
+
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("package ") or stripped.startswith("import"):
+                context_lines.append(line)
+            elif stripped == "import (":
+                # Start of multi-line import block
+                context_lines.append(line)
+
+        return "\n".join(context_lines)
 
     def _extract_python_chunks(self, content: str, file_path: str) -> list[CodeChunk]:
         """Extract Python classes and functions using regex-based parsing."""

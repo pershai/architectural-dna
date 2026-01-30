@@ -71,6 +71,73 @@ class Language(str, Enum):
         }
         return mapping.get(ext.lower(), cls.UNKNOWN)
 
+    @classmethod
+    def from_content(cls, content: str, extension: str = "") -> "Language":
+        """Detect language from file content.
+
+        Uses multiple heuristics:
+        1. Shebang detection
+        2. Keyword pattern matching
+        3. Syntax patterns
+        4. Fallback to extension
+
+        Args:
+            content: File content (first 500 chars recommended)
+            extension: File extension as fallback
+
+        Returns:
+            Detected language
+        """
+        header = content[:500]
+
+        # 1. Shebang detection
+        if header.startswith("#!"):
+            first_line = header.split("\n")[0]
+            if "python" in first_line:
+                return cls.PYTHON
+            elif "node" in first_line or "javascript" in first_line:
+                return cls.JAVASCRIPT
+
+        # 2. C# indicators
+        if any(k in header for k in ["using System", "namespace "]) and (
+            "{" in header and ";" in header
+        ):
+            return cls.CSHARP
+
+        # 3. Java indicators
+        if "package " in header and "import java." in header:
+            return cls.JAVA
+
+        # 4. Python indicators (no braces, has 'def' or 'import')
+        if ("def " in header or "import " in header) and "{" not in header[:200]:
+            return cls.PYTHON
+
+        # 5. TypeScript indicators (has type annotations)
+        if any(
+            k in header for k in [": string", ": number", "interface ", "export type"]
+        ):
+            return cls.TYPESCRIPT
+
+        # 6. JavaScript indicators
+        if any(k in header for k in ["function ", "const ", "let ", "export {"]) and (
+            ": " not in header or "interface" not in header
+        ):
+            return cls.JAVASCRIPT
+
+        # 7. Go indicators
+        if any(k in header for k in ["package ", "func ", "type ", "struct {"]) and (
+            "package " in header
+            or ("type " in header and "struct {" in header)
+            or "func " in header
+        ):
+            return cls.GO
+
+        # 8. Fallback to extension
+        if extension:
+            return cls.from_extension(extension)
+
+        return cls.UNKNOWN
+
 
 @dataclass
 class CodeChunk:

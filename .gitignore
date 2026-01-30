@@ -100,6 +100,11 @@ test_*.py
 !test_repository_tool.py
 !test_resync_all.py
 !test_scaffolder.py
+!test_language_registry.py
+!test_content_detection.py
+!test_ast_extraction.py
+!test_pseudo_ast.py
+!test_ast_real_files.py
 
 # Lock files (generated)
 requirements.lock
