@@ -23,6 +23,7 @@ Architectural DNA helps you:
 - 🤖 **LLM-Powered Analysis** - Intelligent pattern recognition and quality scoring
 - 📊 **Vector Search** - Semantic search across all your code patterns
 - 🏗️ **Smart Scaffolding** - Generate new projects that follow your team's conventions
+- 💾 **Multi-Format Export** - Export patterns to JSON, CSV, or Markdown with filtering and metadata
 - 🔌 **MCP Integration** - Works with any MCP-compatible AI client (Claude Desktop, IDEs)
 - 📋 **Architectural Auditing** - 9 audit rules for C# projects with JSON/Markdown/SARIF reports
 
@@ -411,6 +412,31 @@ Returns information about:
   "output_dir": "csharp_audit_reports"
 }
 ```
+
+#### 9. `export_dna` - Export patterns to multiple formats (NEW)
+```json
+{
+  "output_path": "/exports/patterns.json",
+  "format": "json",
+  "language": "python",
+  "category": "utilities",
+  "min_quality": 7,
+  "limit": 1000,
+  "include_metadata": true
+}
+```
+
+**Supported Formats**: `json`, `csv`, `md`, `markdown`
+- **JSON**: Structured export with metadata and detailed attributes
+- **CSV**: Flattened format for spreadsheet analysis
+- **Markdown**: Human-readable documentation with code blocks and syntax highlighting
+
+**Features**:
+- Multi-language support (Python, Java, JavaScript, TypeScript, C#, Go)
+- Advanced filtering (language, category, quality threshold)
+- Atomic file writes for data safety
+- Comprehensive error handling with detailed metrics
+- Auto-language detection for markdown code blocks
 
 Performs comprehensive C# architectural analysis:
 - Extracts patterns from .cs files

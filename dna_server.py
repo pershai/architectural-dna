@@ -152,6 +152,10 @@ batch_processor = BatchProcessor(client, COLLECTION_NAME, config)
 repository_tool = RepositoryTool(client, COLLECTION_NAME, config, batch_processor)
 maintenance_tool = MaintenanceTool(client, COLLECTION_NAME, config)
 
+# Initialize export tool for data export functionality
+from tools import ExportTool
+export_tool = ExportTool(client, COLLECTION_NAME, config)
+
 
 # ==============================================================================
 # MCP Tool Registrations
@@ -594,6 +598,74 @@ Reports Generated:"""
     except Exception as e:
         logger.error(f"C# project analysis failed: {e}", exc_info=True)
         return f"Error analyzing C# project: {str(e)}"
+
+
+@mcp.tool()
+def export_dna(
+    output_path: str,
+    format: str = "json",
+    language: str | None = None,
+    category: str | None = None,
+    min_quality: int = 5,
+    limit: int = 1000,
+    include_metadata: bool = True,
+) -> str:
+    """Export DNA bank patterns to file in specified format.
+
+    Exports patterns from the Qdrant vector database to a file in JSON, CSV, or Markdown format.
+    Supports filtering by language, category, and quality score with pagination for large exports.
+
+    Args:
+        output_path: Path where to save the exported file
+        format: Export format - 'json', 'csv', or 'md'/'markdown'
+        language: Filter by programming language (e.g., 'python', 'java', 'csharp')
+        category: Filter by pattern category (e.g., 'architecture', 'testing')
+        min_quality: Minimum quality score threshold (0-10)
+        limit: Maximum number of patterns to export (default: 1000)
+        include_metadata: Include metadata section in export (default: True)
+
+    Returns:
+        Status message with export details and file location
+
+    Example:
+        export_dna(
+            output_path="exports/patterns.json",
+            format="json",
+            language="python",
+            min_quality=7,
+            limit=100
+        )
+    """
+    try:
+        logger.info(
+            f"Exporting patterns to {output_path} "
+            f"(format={format}, language={language}, category={category}, min_quality={min_quality})"
+        )
+
+        result = export_tool.export_patterns(
+            output_path=output_path,
+            format=format,
+            language=language,
+            category=category,
+            min_quality=min_quality,
+            limit=limit,
+            include_metadata=include_metadata,
+        )
+
+        if result.success:
+            logger.info(
+                f"Export successful: {result.records_exported} patterns "
+                f"exported to {result.output_path} "
+                f"({result.duration_seconds:.2f}s)"
+            )
+            return str(result)
+        else:
+            logger.error(f"Export failed: {result}")
+            return str(result)
+
+    except Exception as e:
+        logger.error(f"Export operation failed: {e}", exc_info=True)
+        return f"Error exporting patterns: {str(e)}"
 
 
 def apply_header_overrides(headers: dict) -> dict:
