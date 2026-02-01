@@ -1,11 +1,12 @@
 """Tests for RepositoryTool."""
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 from constants import LARGE_REPO_THRESHOLD
-from tools.repository_tool import RepositoryTool
 from models import Language, PatternCategory
+from tools.repository_tool import RepositoryTool
 
 
 class TestRepositoryTool:
@@ -18,12 +19,8 @@ class TestRepositoryTool:
     @pytest.fixture
     def test_config(self):
         return {
-            "github": {
-                "excluded_repos": ["test/excluded"]
-            },
-            "llm": {
-                "min_quality_score": 5
-            }
+            "github": {"excluded_repos": ["test/excluded"]},
+            "llm": {"min_quality_score": 5},
         }
 
     @pytest.fixture
@@ -33,7 +30,9 @@ class TestRepositoryTool:
     @pytest.fixture
     def tool_with_batch(self, mock_qdrant_client, test_config):
         mock_batch = Mock()
-        return RepositoryTool(mock_qdrant_client, "test_collection", test_config, mock_batch)
+        return RepositoryTool(
+            mock_qdrant_client, "test_collection", test_config, mock_batch
+        )
 
     # ==========================================================================
     # list_my_repos tests
@@ -55,7 +54,7 @@ class TestRepositoryTool:
         mock_repo2.default_branch = "master"
         mock_repo2.description = None
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.list_repositories.return_value = [mock_repo1, mock_repo2]
             mock_gh.return_value = mock_client
@@ -72,7 +71,7 @@ class TestRepositoryTool:
 
     def test_list_my_repos_empty(self, tool):
         """Test listing when no repositories found."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.list_repositories.return_value = []
             mock_gh.return_value = mock_client
@@ -83,7 +82,7 @@ class TestRepositoryTool:
 
     def test_list_my_repos_auth_error(self, tool):
         """Test handling authentication errors."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_gh.side_effect = ValueError("Invalid token")
 
             result = tool.list_my_repos()
@@ -93,7 +92,7 @@ class TestRepositoryTool:
 
     def test_list_my_repos_general_error(self, tool):
         """Test handling general errors."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_gh.side_effect = Exception("Network error")
 
             result = tool.list_my_repos()
@@ -103,7 +102,7 @@ class TestRepositoryTool:
 
     def test_list_my_repos_with_filters(self, tool):
         """Test listing with include filters."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.list_repositories.return_value = []
             mock_gh.return_value = mock_client
@@ -113,7 +112,7 @@ class TestRepositoryTool:
             mock_client.list_repositories.assert_called_once_with(
                 include_private=False,
                 include_orgs=False,
-                excluded_patterns=["test/excluded"]
+                excluded_patterns=["test/excluded"],
             )
 
     # ==========================================================================
@@ -122,7 +121,7 @@ class TestRepositoryTool:
 
     def test_sync_github_repo_no_code_files(self, tool):
         """Test syncing repo with no code files."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = []
@@ -137,7 +136,7 @@ class TestRepositoryTool:
         mock_file = Mock()
         mock_file.path = "test.py"
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
@@ -145,7 +144,7 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = []
                 mock_extractor.return_value = mock_ext
@@ -166,7 +165,7 @@ class TestRepositoryTool:
         mock_chunk.chunk_type = "function"
         mock_chunk.name = "test"
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
@@ -174,7 +173,7 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = [mock_chunk]
                 mock_extractor.return_value = mock_ext
@@ -205,7 +204,7 @@ class TestRepositoryTool:
         mock_analysis.quality_score = 8
         mock_analysis.use_cases = ["User management"]
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
@@ -213,14 +212,16 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = [mock_chunk]
                 mock_extractor.return_value = mock_ext
 
-                with patch.object(tool, 'get_llm_analyzer') as mock_llm:
+                with patch.object(tool, "get_llm_analyzer") as mock_llm:
                     mock_analyzer = Mock()
-                    mock_analyzer.analyze_chunks.return_value = [(mock_chunk, mock_analysis)]
+                    mock_analyzer.analyze_chunks.return_value = [
+                        (mock_chunk, mock_analysis)
+                    ]
                     mock_llm.return_value = mock_analyzer
 
                     result = tool.sync_github_repo("user/repo", analyze_patterns=True)
@@ -240,7 +241,7 @@ class TestRepositoryTool:
         mock_chunk.chunk_type = "function"
         mock_chunk.name = "test"
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
@@ -248,12 +249,12 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = [mock_chunk]
                 mock_extractor.return_value = mock_ext
 
-                with patch.object(tool, 'get_llm_analyzer') as mock_llm:
+                with patch.object(tool, "get_llm_analyzer") as mock_llm:
                     mock_llm.side_effect = Exception("LLM API error")
 
                     result = tool.sync_github_repo("user/repo", analyze_patterns=True)
@@ -263,7 +264,7 @@ class TestRepositoryTool:
 
     def test_sync_github_repo_auth_error(self, tool):
         """Test sync with authentication error."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_gh.side_effect = ValueError("Invalid token")
 
             result = tool.sync_github_repo("user/repo")
@@ -273,7 +274,7 @@ class TestRepositoryTool:
 
     def test_sync_github_repo_general_error(self, tool):
         """Test sync with general error."""
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_gh.side_effect = Exception("Network error")
 
             result = tool.sync_github_repo("user/repo")
@@ -296,7 +297,7 @@ class TestRepositoryTool:
         # First call succeeds, second fails
         mock_qdrant_client.add.side_effect = [None, Exception("Store error")]
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file, mock_file]
@@ -304,7 +305,7 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = [mock_chunk]
                 mock_extractor.return_value = mock_ext
@@ -319,14 +320,14 @@ class TestRepositoryTool:
         mock_file = Mock()
         mock_file.path = "empty.py"
 
-        with patch.object(tool, 'get_github_client') as mock_gh:
+        with patch.object(tool, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = [mock_file]
             mock_client.get_file_content.return_value = None  # Empty content
             mock_gh.return_value = mock_client
 
-            with patch.object(tool, 'get_pattern_extractor') as mock_extractor:
+            with patch.object(tool, "get_pattern_extractor") as mock_extractor:
                 mock_ext = Mock()
                 mock_ext.extract_chunks.return_value = []
                 mock_extractor.return_value = mock_ext
@@ -342,9 +343,11 @@ class TestRepositoryTool:
     def test_sync_large_repo_uses_batch_processor(self, tool_with_batch):
         """Test that large repos automatically use batch processor."""
         # Create more files than the threshold
-        mock_files = [Mock(path=f"file{i}.py") for i in range(LARGE_REPO_THRESHOLD + 10)]
+        mock_files = [
+            Mock(path=f"file{i}.py") for i in range(LARGE_REPO_THRESHOLD + 10)
+        ]
 
-        with patch.object(tool_with_batch, 'get_github_client') as mock_gh:
+        with patch.object(tool_with_batch, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = mock_files
@@ -352,8 +355,12 @@ class TestRepositoryTool:
 
             # Mock batch processor
             mock_config = Mock()
-            tool_with_batch._batch_processor._get_default_batch_config.return_value = mock_config
-            tool_with_batch._batch_processor.batch_sync_repo.return_value = "[OK] Batch synced"
+            tool_with_batch._batch_processor._get_default_batch_config.return_value = (
+                mock_config
+            )
+            tool_with_batch._batch_processor.batch_sync_repo.return_value = (
+                "[OK] Batch synced"
+            )
 
             result = tool_with_batch.sync_github_repo("user/large-repo")
 
@@ -361,7 +368,9 @@ class TestRepositoryTool:
             tool_with_batch._batch_processor.batch_sync_repo.assert_called_once()
             assert "[OK]" in result
 
-    def test_sync_small_repo_does_not_use_batch(self, tool_with_batch, mock_qdrant_client):
+    def test_sync_small_repo_does_not_use_batch(
+        self, tool_with_batch, mock_qdrant_client
+    ):
         """Test that small repos don't use batch processor."""
         # Create fewer files than the threshold
         mock_files = [Mock(path=f"file{i}.py") for i in range(5)]
@@ -373,7 +382,7 @@ class TestRepositoryTool:
         mock_chunk.chunk_type = "function"
         mock_chunk.name = "test"
 
-        with patch.object(tool_with_batch, 'get_github_client') as mock_gh:
+        with patch.object(tool_with_batch, "get_github_client") as mock_gh:
             mock_client = Mock()
             mock_client.get_repository.return_value = Mock()
             mock_client.get_code_files.return_value = mock_files
@@ -381,12 +390,14 @@ class TestRepositoryTool:
             mock_client.get_language.return_value = Language.PYTHON
             mock_gh.return_value = mock_client
 
-            with patch.object(tool_with_batch, 'get_pattern_extractor') as mock_ext:
+            with patch.object(tool_with_batch, "get_pattern_extractor") as mock_ext:
                 mock_extractor = Mock()
                 mock_extractor.extract_chunks.return_value = [mock_chunk]
                 mock_ext.return_value = mock_extractor
 
-                result = tool_with_batch.sync_github_repo("user/small-repo", analyze_patterns=False)
+                result = tool_with_batch.sync_github_repo(
+                    "user/small-repo", analyze_patterns=False
+                )
 
                 # Should NOT have called batch processor
                 tool_with_batch._batch_processor.batch_sync_repo.assert_not_called()
