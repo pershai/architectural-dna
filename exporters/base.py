@@ -52,12 +52,7 @@ class BaseExporter(ABC):
     """
 
     @abstractmethod
-    def export(
-        self,
-        data: Any,
-        output_path: str,
-        **options
-    ) -> ExportResult:
+    def export(self, data: Any, output_path: str, **options) -> ExportResult:
         """Export data to file in the specific format.
 
         Args:

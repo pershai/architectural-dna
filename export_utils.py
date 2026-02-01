@@ -43,9 +43,7 @@ class WriteResult:
 
 
 def sanitize_export_path(
-    output_path: str,
-    base_dir: str | None = None,
-    strict: bool = True
+    output_path: str, base_dir: str | None = None, strict: bool = True
 ) -> tuple[bool, Path | None, str]:
     """Sanitize and validate export path to prevent traversal attacks.
 
@@ -75,7 +73,11 @@ def sanitize_export_path(
 
     # Reject paths with traversal sequences (always dangerous)
     if ".." in output_path:
-        return False, None, "Output path cannot contain .. (parent directory references)"
+        return (
+            False,
+            None,
+            "Output path cannot contain .. (parent directory references)",
+        )
 
     # Check for null bytes and other dangerous characters
     if "\0" in output_path:
@@ -109,9 +111,7 @@ def sanitize_export_path(
 
 
 def atomic_file_write(
-    output_path: str,
-    write_func: Callable[[Path], None],
-    create_parents: bool = True
+    output_path: str, write_func: Callable[[Path], None], create_parents: bool = True
 ) -> WriteResult:
     """Atomic file write helper (temp → rename).
 
@@ -153,13 +153,15 @@ def atomic_file_write(
 
     try:
         # SECURITY: Validate path to prevent traversal attacks (permissive mode for backward compatibility)
-        valid, sanitized_path, error_msg = sanitize_export_path(output_path, strict=False)
+        valid, sanitized_path, error_msg = sanitize_export_path(
+            output_path, strict=False
+        )
         if not valid:
             duration = time.time() - start_time
             return WriteResult(
                 success=False,
                 duration_seconds=duration,
-                error=f"Path validation failed: {error_msg}"
+                error=f"Path validation failed: {error_msg}",
             )
 
         output_file = sanitized_path
@@ -178,7 +180,7 @@ def atomic_file_write(
             return WriteResult(
                 success=False,
                 duration_seconds=duration,
-                error=f"Cannot write to {output_path}: {e}"
+                error=f"Cannot write to {output_path}: {e}",
             )
 
         # Write to temp file first (atomic operation)
@@ -192,11 +194,7 @@ def atomic_file_write(
         file_size = output_file.stat().st_size
         duration = time.time() - start_time
 
-        return WriteResult(
-            success=True,
-            duration_seconds=duration,
-            file_size=file_size
-        )
+        return WriteResult(success=True, duration_seconds=duration, file_size=file_size)
 
     except Exception as e:
         # Clean up temp file on failure
@@ -205,11 +203,7 @@ def atomic_file_write(
                 temp_file.unlink()
 
         duration = time.time() - start_time
-        return WriteResult(
-            success=False,
-            duration_seconds=duration,
-            error=str(e)
-        )
+        return WriteResult(success=False, duration_seconds=duration, error=str(e))
 
 
 def validate_io_path(output_path: str) -> tuple[bool, str]:

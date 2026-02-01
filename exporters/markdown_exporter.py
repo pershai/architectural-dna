@@ -27,15 +27,10 @@ class MarkdownExporter(BaseExporter):
         "typescript": "typescript",
         "csharp": "csharp",
         "go": "go",
-        "unknown": "text"
+        "unknown": "text",
     }
 
-    def export(
-        self,
-        data: Any,
-        output_path: str,
-        **options
-    ) -> ExportResult:
+    def export(self, data: Any, output_path: str, **options) -> ExportResult:
         """Export data to Markdown file.
 
         Args:
@@ -91,9 +86,14 @@ class MarkdownExporter(BaseExporter):
                     output_path=output_path,
                     records_exported=0,
                     records_failed=0,
-                    errors=[{"type": "ValueError", "error": "Markdown export requires list or dict"}],
+                    errors=[
+                        {
+                            "type": "ValueError",
+                            "error": "Markdown export requires list or dict",
+                        }
+                    ],
                     warnings=[],
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
 
             # Write to file
@@ -112,7 +112,7 @@ class MarkdownExporter(BaseExporter):
                 records_failed=0,
                 errors=[],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
         except Exception as e:
@@ -124,7 +124,7 @@ class MarkdownExporter(BaseExporter):
                 records_failed=0,
                 errors=[{"type": type(e).__name__, "error": str(e)}],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
     def _format_pattern_list(self, patterns: list) -> list[str]:
@@ -149,15 +149,15 @@ class MarkdownExporter(BaseExporter):
             lines.append(f"**Quality**: {pattern.get('quality_score', 'N/A')}/10")
             lines.append("")
 
-            description = pattern.get('description', 'No description')
+            description = pattern.get("description", "No description")
             lines.append(f"**Description**: {description}")
             lines.append("")
 
             # Add code block with auto-detected language
             if "content" in pattern and pattern["content"]:
                 # CRITICAL: Auto-detect language from pattern metadata
-                pattern_lang = pattern.get('language', 'python')
-                syntax_lang = self.LANGUAGE_MAP.get(pattern_lang, 'text')
+                pattern_lang = pattern.get("language", "python")
+                syntax_lang = self.LANGUAGE_MAP.get(pattern_lang, "text")
 
                 lines.append(f"```{syntax_lang}")
                 lines.append(pattern["content"])

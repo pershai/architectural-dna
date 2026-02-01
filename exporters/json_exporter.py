@@ -23,12 +23,7 @@ class JsonExporter(BaseExporter):
     - Per-item error handling with graceful degradation
     """
 
-    def export(
-        self,
-        data: Any,
-        output_path: str,
-        **options
-    ) -> ExportResult:
+    def export(self, data: Any, output_path: str, **options) -> ExportResult:
         """Export data to JSON file.
 
         Args:
@@ -70,7 +65,7 @@ class JsonExporter(BaseExporter):
                     records_failed=0,
                     errors=[{"type": "PermissionError", "error": str(e)}],
                     warnings=[],
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
 
             # 2. Serialize data with per-item error handling
@@ -79,11 +74,9 @@ class JsonExporter(BaseExporter):
                     try:
                         serialized_items.append(self._serialize(item))
                     except Exception as e:
-                        errors.append({
-                            "index": idx,
-                            "type": type(item).__name__,
-                            "error": str(e)
-                        })
+                        errors.append(
+                            {"index": idx, "type": type(item).__name__, "error": str(e)}
+                        )
                         if skip_on_error:
                             warnings.append(f"Skipped item {idx}: {str(e)}")
                         else:
@@ -100,7 +93,7 @@ class JsonExporter(BaseExporter):
                         records_failed=1,
                         errors=[{"type": type(data).__name__, "error": str(e)}],
                         warnings=[],
-                        duration_seconds=duration
+                        duration_seconds=duration,
                     )
 
             # 3. Prepare output structure
@@ -109,14 +102,14 @@ class JsonExporter(BaseExporter):
                     "metadata": {
                         "exported_at": datetime.now().isoformat(),
                         "format": "json",
-                        "version": "1.0"
+                        "version": "1.0",
                     },
                     "data": serialized_items,
                     "export_stats": {
                         "total": len(data) if isinstance(data, list) else 1,
                         "exported": len(serialized_items),
-                        "failed": len(errors)
-                    }
+                        "failed": len(errors),
+                    },
                 }
             else:
                 output_data = serialized_items
@@ -125,7 +118,9 @@ class JsonExporter(BaseExporter):
             temp_file = output_file.with_suffix(".tmp")
             try:
                 with open(temp_file, "w", encoding="utf-8") as f:
-                    json.dump(output_data, f, indent=indent, default=self._json_serializer)
+                    json.dump(
+                        output_data, f, indent=indent, default=self._json_serializer
+                    )
 
                 # Atomic rename (prevents partial file corruption)
                 temp_file.replace(output_file)
@@ -144,7 +139,7 @@ class JsonExporter(BaseExporter):
                 records_failed=len(errors),
                 errors=errors,
                 warnings=warnings,
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
         except Exception as e:
@@ -156,7 +151,7 @@ class JsonExporter(BaseExporter):
                 records_failed=len(errors) + 1,
                 errors=errors + [{"type": "WriteError", "error": str(e)}],
                 warnings=warnings,
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
     def _serialize(self, obj: Any) -> Any:

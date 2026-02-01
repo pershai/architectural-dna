@@ -20,12 +20,7 @@ class CsvExporter(BaseExporter):
     - Flexible delimiter support
     """
 
-    def export(
-        self,
-        data: Any,
-        output_path: str,
-        **options
-    ) -> ExportResult:
+    def export(self, data: Any, output_path: str, **options) -> ExportResult:
         """Export data to CSV file.
 
         Args:
@@ -59,9 +54,14 @@ class CsvExporter(BaseExporter):
                     output_path=output_path,
                     records_exported=0,
                     records_failed=0,
-                    errors=[{"type": "ValueError", "error": "CSV export requires dict or list of dicts"}],
+                    errors=[
+                        {
+                            "type": "ValueError",
+                            "error": "CSV export requires dict or list of dicts",
+                        }
+                    ],
                     warnings=[],
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
 
             if not rows:
@@ -73,7 +73,7 @@ class CsvExporter(BaseExporter):
                     records_failed=0,
                     errors=[],
                     warnings=["No data to export"],
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
 
             # Get fieldnames from first row
@@ -95,7 +95,7 @@ class CsvExporter(BaseExporter):
                 records_failed=0,
                 errors=[],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
         except Exception as e:
@@ -107,7 +107,7 @@ class CsvExporter(BaseExporter):
                 records_failed=0,
                 errors=[{"type": type(e).__name__, "error": str(e)}],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
     def _flatten_dict(self, d: dict, parent_key: str = "", sep: str = "_") -> dict:
@@ -144,9 +144,9 @@ class CsvExporter(BaseExporter):
                 # Check if all items are strings
                 if all(isinstance(x, str) for x in v):
                     # Join strings with semicolon (escape semicolons in values)
-                    items.append((new_key, "; ".join(
-                        str(x).replace(";", "\\;") for x in v
-                    )))
+                    items.append(
+                        (new_key, "; ".join(str(x).replace(";", "\\;") for x in v))
+                    )
                 else:
                     # Use JSON for complex types (preserves types on re-import)
                     items.append((new_key, json.dumps(list(v))))

@@ -26,9 +26,7 @@ class ExporterFactory:
             TypeError: If exporter_class doesn't inherit from BaseExporter
         """
         if not issubclass(exporter_class, BaseExporter):
-            raise TypeError(
-                f"{exporter_class.__name__} must inherit from BaseExporter"
-            )
+            raise TypeError(f"{exporter_class.__name__} must inherit from BaseExporter")
         cls._exporters[format_name.lower()] = exporter_class
 
     @classmethod

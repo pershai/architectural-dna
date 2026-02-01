@@ -30,7 +30,7 @@ class ExportTool(BaseTool):
         category: str | None = None,
         min_quality: int = 5,
         limit: int = 1000,
-        **export_options
+        **export_options,
     ) -> ExportResult:
         """Export patterns from Qdrant with filtering and pagination.
 
@@ -60,9 +60,14 @@ class ExportTool(BaseTool):
                 output_path=output_path,
                 records_exported=0,
                 records_failed=0,
-                errors=[{"type": "SecurityError", "error": f"Path validation failed: {error_msg}"}],
+                errors=[
+                    {
+                        "type": "SecurityError",
+                        "error": f"Path validation failed: {error_msg}",
+                    }
+                ],
                 warnings=[],
-                duration_seconds=time.time() - start_time
+                duration_seconds=time.time() - start_time,
             )
 
         try:
@@ -100,7 +105,7 @@ class ExportTool(BaseTool):
                     offset=offset,  # None for first page, then use cursor
                     scroll_filter=query_filter,
                     with_payload=True,
-                    with_vectors=False
+                    with_vectors=False,
                 )
 
                 # No more results
@@ -109,10 +114,7 @@ class ExportTool(BaseTool):
 
                 # Convert Qdrant points to dicts
                 for point in records:
-                    pattern_data = {
-                        "id": str(point.id),
-                        **point.payload
-                    }
+                    pattern_data = {"id": str(point.id), **point.payload}
                     patterns.append(pattern_data)
 
                 # Update offset for next iteration
@@ -137,7 +139,7 @@ class ExportTool(BaseTool):
                 records_failed=0,
                 errors=[{"type": type(e).__name__, "error": str(e)}],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
 
     def export_search_results(
@@ -146,7 +148,7 @@ class ExportTool(BaseTool):
         output_path: str,
         format: str = "json",
         limit: int = 10,
-        **export_options
+        **export_options,
     ) -> ExportResult:
         """Export search results to file.
 
@@ -171,9 +173,14 @@ class ExportTool(BaseTool):
                 output_path=output_path,
                 records_exported=0,
                 records_failed=0,
-                errors=[{"type": "SecurityError", "error": f"Path validation failed: {error_msg}"}],
+                errors=[
+                    {
+                        "type": "SecurityError",
+                        "error": f"Path validation failed: {error_msg}",
+                    }
+                ],
                 warnings=[],
-                duration_seconds=time.time() - start_time
+                duration_seconds=time.time() - start_time,
             )
 
         try:
@@ -198,5 +205,5 @@ class ExportTool(BaseTool):
                 records_failed=0,
                 errors=[{"type": type(e).__name__, "error": str(e)}],
                 warnings=[],
-                duration_seconds=duration
+                duration_seconds=duration,
             )
