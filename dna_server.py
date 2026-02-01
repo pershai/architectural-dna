@@ -32,7 +32,14 @@ from fastmcp import FastMCP
 from qdrant_client import QdrantClient
 
 from embedding_manager import EmbeddingManager
-from tools import MaintenanceTool, PatternTool, RepositoryTool, ScaffoldTool, StatsTool
+from tools import (
+    ExportTool,
+    MaintenanceTool,
+    PatternTool,
+    RepositoryTool,
+    ScaffoldTool,
+    StatsTool,
+)
 from tools.batch_processor import BatchProcessor
 
 # Configure logging
@@ -153,7 +160,6 @@ repository_tool = RepositoryTool(client, COLLECTION_NAME, config, batch_processo
 maintenance_tool = MaintenanceTool(client, COLLECTION_NAME, config)
 
 # Initialize export tool for data export functionality
-from tools import ExportTool
 export_tool = ExportTool(client, COLLECTION_NAME, config)
 
 
