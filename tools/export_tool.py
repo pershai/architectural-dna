@@ -4,6 +4,7 @@ import time
 
 from qdrant_client.models import FieldCondition, Filter, MatchValue, Range
 
+from export_utils import sanitize_export_path
 from exporters import ExporterFactory, ExportResult
 
 from .base import BaseTool
@@ -49,6 +50,20 @@ class ExportTool(BaseTool):
             ExportResult with export metrics and error details
         """
         start_time = time.time()
+
+        # SECURITY: Validate path to prevent traversal attacks
+        # Use strict=False to allow absolute paths (backward compatible with C# audit reporter)
+        valid, _, error_msg = sanitize_export_path(output_path, strict=False)
+        if not valid:
+            return ExportResult(
+                success=False,
+                output_path=output_path,
+                records_exported=0,
+                records_failed=0,
+                errors=[{"type": "SecurityError", "error": f"Path validation failed: {error_msg}"}],
+                warnings=[],
+                duration_seconds=time.time() - start_time
+            )
 
         try:
             # 1. Build Qdrant filter
@@ -146,6 +161,20 @@ class ExportTool(BaseTool):
             ExportResult with export metrics
         """
         start_time = time.time()
+
+        # SECURITY: Validate path to prevent traversal attacks
+        # Use strict=False to allow absolute paths (backward compatible with C# audit reporter)
+        valid, _, error_msg = sanitize_export_path(output_path, strict=False)
+        if not valid:
+            return ExportResult(
+                success=False,
+                output_path=output_path,
+                records_exported=0,
+                records_failed=0,
+                errors=[{"type": "SecurityError", "error": f"Path validation failed: {error_msg}"}],
+                warnings=[],
+                duration_seconds=time.time() - start_time
+            )
 
         try:
             # Use existing search logic

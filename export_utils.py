@@ -7,8 +7,10 @@ This module provides reusable utilities to prevent duplication between:
 Key utilities:
 - atomic_file_write() - Ensures data integrity (temp → rename)
 - validate_io_path() - Permission and path validation
+- sanitize_export_path() - Security validation for path traversal prevention
 """
 
+import os
 import time
 from collections.abc import Callable
 from contextlib import suppress
@@ -38,6 +40,72 @@ class WriteResult:
             return f"✓ Written {self.file_size} bytes in {self.duration_seconds:.2f}s"
         else:
             return f"✗ Failed: {self.error}"
+
+
+def sanitize_export_path(
+    output_path: str,
+    base_dir: str | None = None,
+    strict: bool = True
+) -> tuple[bool, Path | None, str]:
+    """Sanitize and validate export path to prevent traversal attacks.
+
+    Two validation modes:
+    1. STRICT (strict=True, default): For MCP tool entry points
+       - Rejects absolute paths
+       - Rejects path traversal sequences (..)
+    2. PERMISSIVE (strict=False): For internal APIs (C# audit reporter, etc.)
+       - Allows absolute paths
+       - Rejects traversal sequences (..)
+
+    Args:
+        output_path: User-provided output path to validate
+        base_dir: Optional base directory to restrict exports to (default: None)
+                 If specified with strict=True, enforces base_dir boundary
+        strict: If True (default), apply strict validation (reject absolute paths)
+               If False, permit absolute paths but still reject traversal
+
+    Returns:
+        (valid: bool, resolved_path: Path | None, error_msg: str)
+        - If valid: (True, Path object, "")
+        - If invalid: (False, None, error description)
+    """
+    # Reject empty paths
+    if not output_path or not output_path.strip():
+        return False, None, "Output path cannot be empty"
+
+    # Reject paths with traversal sequences (always dangerous)
+    if ".." in output_path:
+        return False, None, "Output path cannot contain .. (parent directory references)"
+
+    # Check for null bytes and other dangerous characters
+    if "\0" in output_path:
+        return False, None, "Output path contains invalid null byte"
+
+    # In strict mode, reject absolute paths
+    if strict and os.path.isabs(output_path):
+        return False, None, "Output path must be relative (not absolute)"
+
+    # Convert to Path object
+    try:
+        target_path = Path(output_path)
+    except (ValueError, TypeError) as e:
+        return False, None, f"Invalid path format: {e}"
+
+    # If base_dir is specified, validate that resolved path stays within it
+    if base_dir:
+        try:
+            base_path = Path(base_dir).resolve()
+            target_resolved = target_path.resolve()
+
+            # Check if target escapes base directory
+            try:
+                target_resolved.relative_to(base_path)
+            except ValueError:
+                return False, None, f"Output path must be within {base_dir}"
+        except (OSError, RuntimeError) as e:
+            return False, None, f"Cannot validate path: {e}"
+
+    return True, target_path, ""
 
 
 def atomic_file_write(
@@ -84,7 +152,17 @@ def atomic_file_write(
     temp_file = None
 
     try:
-        output_file = Path(output_path)
+        # SECURITY: Validate path to prevent traversal attacks (permissive mode for backward compatibility)
+        valid, sanitized_path, error_msg = sanitize_export_path(output_path, strict=False)
+        if not valid:
+            duration = time.time() - start_time
+            return WriteResult(
+                success=False,
+                duration_seconds=duration,
+                error=f"Path validation failed: {error_msg}"
+            )
+
+        output_file = sanitized_path
 
         # Create parent directories if needed
         if create_parents:
